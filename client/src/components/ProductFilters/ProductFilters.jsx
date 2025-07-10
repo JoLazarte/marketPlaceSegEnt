@@ -9,7 +9,6 @@ const ProductFilters = ({
   onGenreChange, 
   onSearchChange, 
   onBestsellerChange, 
-  onPromoChange,
   addRoute,
   addButtonText 
 }) => {
@@ -32,14 +31,6 @@ const ProductFilters = ({
             onChange={e => onBestsellerChange(e.target.checked)}
           />
           Más vendidos
-        </CheckboxLabel>
-        <CheckboxLabel>
-          <input
-            type="checkbox"
-            checked={filters.promo}
-            onChange={e => onPromoChange(e.target.checked)}
-          />
-          Promociones
         </CheckboxLabel>
         <Select value={filters.genre} onChange={e => onGenreChange(e.target.value)}>
           {genres.map(g => (

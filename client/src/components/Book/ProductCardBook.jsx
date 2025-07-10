@@ -9,12 +9,16 @@ import { toast } from 'react-toastify';
 const ProductCardBook = ({ item, onStatusChange }) => {
   if (!item) return null;
   
-  const { id, title, author, editorial, description, urlImage, price, stock, active } = item;
+  const { id, title, author, editorial, description, urlImage, price, stock, active, discountPercentage = 0, discountActive = false } = item;
   const isOutOfStock = stock === 0;
   const isInactive = active === false;
   const navigate = useNavigate();
   const { canEditProducts } = useAuth();
   const [isToggling, setIsToggling] = useState(false);
+
+  // Calcular precio con descuento
+  const hasDiscount = discountActive && discountPercentage > 0;
+  const finalPrice = hasDiscount ? price * (1 - discountPercentage / 100) : price;
 
   const handleToggleStatus = async (e) => {
     e.preventDefault();
@@ -32,6 +36,11 @@ const ProductCardBook = ({ item, onStatusChange }) => {
         if (onStatusChange) {
           onStatusChange(id, !active);
         }
+        
+        // Emitir evento global para actualizar carrouseles
+        window.dispatchEvent(new CustomEvent('productUpdate', {
+          detail: { productType: 'book', action: 'status-change', id, newStatus: !active }
+        }));
       } else {
         toast.error(result.error || 'Error al cambiar el estado del libro');
       }
@@ -49,13 +58,23 @@ const ProductCardBook = ({ item, onStatusChange }) => {
         <img src={Array.isArray(urlImage) ? urlImage[0] : urlImage} alt={title} />
         {isOutOfStock && <div className="stock-overlay">Sin stock</div>}
         {isInactive && <div className="inactive-overlay">Deshabilitado</div>}
+        {hasDiscount && <div className="discount-badge">{discountPercentage}% OFF</div>}
       </div>
       <div className="details">
         <h3 className="title">{title}</h3>
         <p className="author">{author}</p>
         {editorial && <p className="editorial">{editorial}</p>}
         <p className="description">{description}</p>
-        <p className="price">${price}</p>
+        <div className="price-container">
+          {hasDiscount ? (
+            <>
+              <p className="original-price">${price.toFixed(2)}</p>
+              <p className="final-price">${finalPrice.toFixed(2)}</p>
+            </>
+          ) : (
+            <p className="price">${price.toFixed(2)}</p>
+          )}
+        </div>
       </div>
     </>
   );

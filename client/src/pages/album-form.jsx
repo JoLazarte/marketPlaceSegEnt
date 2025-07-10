@@ -2,6 +2,8 @@ import React, { useState, useRef } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { useDispatch } from 'react-redux';
+import { invalidateAlbums } from '../store/slices/productsSlice';
 import apiUtils from '../utils/apiUtils';
 
 // URL base del backend
@@ -32,12 +34,15 @@ const AlbumForm = () => {
     stock: '',
     urlImage: '',
     year: '',
-    active: true
+    active: true,
+    discountPercentage: 0,
+    discountActive: false
   });
   const [touched, setTouched] = useState({});
   const [errors, setErrors] = useState({});
   const [shake, setShake] = useState(false);
   const navigate = useNavigate();
+  const dispatch = useDispatch();
 
   // Refs para scroll automático a errores
   const refs = {
@@ -50,7 +55,8 @@ const AlbumForm = () => {
     price: useRef(null),
     stock: useRef(null),
     urlImage: useRef(null),
-    year: useRef(null)
+    year: useRef(null),
+    discountPercentage: useRef(null)
   };
 
   // Validación de campos
@@ -68,14 +74,30 @@ const AlbumForm = () => {
       newErrors.year = 'Año inválido';
     }
     if (!fields.urlImage.trim() || !/^https?:\/\/.+\..+/.test(fields.urlImage)) newErrors.urlImage = 'URL de imagen inválida';
+    
+    // Validaciones de descuento
+    if (fields.discountPercentage && (isNaN(fields.discountPercentage) || Number(fields.discountPercentage) < 0 || Number(fields.discountPercentage) > 90)) {
+      newErrors.discountPercentage = 'El descuento debe estar entre 0% y 90%';
+    }
+    
     return newErrors;
   };
 
   const handleChange = e => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
+    
+    setForm(prev => ({ ...prev, [name]: newValue }));
     setTouched(prev => ({ ...prev, [name]: true }));
-    setErrors(validate({ ...form, [name]: value }));
+    setErrors(validate({ ...form, [name]: newValue }));
+    
+    // Alert para descuentos altos
+    if (name === 'discountPercentage' && Number(value) > 50) {
+      toast.warning('⚠️ Descuento alto: ¿Estás seguro de aplicar más del 50%?', {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
   };
 
   // Manejo especial para géneros múltiples con checkboxes
@@ -111,18 +133,24 @@ const AlbumForm = () => {
     if (Object.keys(validationErrors).length === 0) {
       try {
         const albumData = apiUtils.formatAlbumData(form);
-        console.log('Creating album with data:', albumData);
         
         const result = await apiUtils.createAlbum(albumData);
-        console.log('Create result:', result);
 
         toast.success('¡Álbum agregado correctamente! 🎵', {
           position: "top-right",
           autoClose: 3000,
         });
+        
+        // Invalidar caché para forzar recarga
+        dispatch(invalidateAlbums());
+        
+        // Emitir evento global para actualizar carrouseles
+        window.dispatchEvent(new CustomEvent('productUpdate', {
+          detail: { productType: 'album', action: 'create' }
+        }));
+        
         navigate('/albums');
       } catch (err) {
-        console.error('Error creating album:', err);
         toast.error(`Error al agregar el álbum: ${err.message}`, {
           position: "top-right",
           autoClose: 5000,
@@ -300,6 +328,57 @@ const AlbumForm = () => {
             />
             {touched.urlImage && errors.urlImage && <ErrorMsg>{errors.urlImage}</ErrorMsg>}
           </InputGroup>
+
+          {/* Sección de Descuentos */}
+          <DiscountSection>
+            <DiscountTitle>🏷️ Configuración de Descuentos</DiscountTitle>
+            
+            <InputGroup ref={refs.discountPercentage}>
+              <Label>Descuento (%)</Label>
+              <Input
+                name="discountPercentage"
+                type="number"
+                min="0"
+                max="90"
+                step="1"
+                value={form.discountPercentage}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                $active={touched.discountPercentage && form.discountPercentage > 0}
+                $error={errors.discountPercentage}
+                placeholder="Ej: 25"
+              />
+              {touched.discountPercentage && errors.discountPercentage && <ErrorMsg>{errors.discountPercentage}</ErrorMsg>}
+              <Hint>Máximo 90% de descuento</Hint>
+            </InputGroup>
+
+            <CheckboxContainer>
+              <input
+                type="checkbox"
+                name="discountActive"
+                checked={form.discountActive}
+                onChange={handleChange}
+              />
+              <CheckboxLabel>Activar descuento</CheckboxLabel>
+            </CheckboxContainer>
+
+            {/* Preview del precio con descuento */}
+            {form.price && form.discountPercentage > 0 && (
+              <PricePreview>
+                <PreviewTitle>Vista previa del precio:</PreviewTitle>
+                <PriceComparison>
+                  <OriginalPrice>${Number(form.price).toFixed(2)}</OriginalPrice>
+                  <FinalPrice>
+                    ${(Number(form.price) * (1 - Number(form.discountPercentage) / 100)).toFixed(2)}
+                  </FinalPrice>
+                </PriceComparison>
+                <Savings>
+                  Ahorro: ${(Number(form.price) * (Number(form.discountPercentage) / 100)).toFixed(2)} ({form.discountPercentage}% OFF)
+                </Savings>
+              </PricePreview>
+            )}
+          </DiscountSection>
+
           <Button type="submit">Agregar Álbum</Button>
         </Form>
       </Wrapper>
@@ -323,22 +402,80 @@ const shake = keyframes`
 
 const Bg = styled.div`
   min-height: 100vh;
-  background: #181818;
+  background: linear-gradient(135deg, #0a0a0a 0%, #1a1a1a 50%, #121212 100%);
   color: #fff;
   padding-bottom: 3rem;
   display: flex;
   align-items: center;
   justify-content: center;
-`;
+  position: relative;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: radial-gradient(circle at 20% 80%, rgba(0, 255, 0, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(255, 68, 68, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 40% 40%, rgba(255, 255, 255, 0.03) 0%, transparent 50%);
+    pointer-events: none;
+  }
+`
 
 const Wrapper = styled.div`
-  background: #222;
-  border-radius: 1.5rem;
-  box-shadow: 0 8px 32px rgba(0,0,0,0.35);
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 24px;
+  box-shadow: 
+    0 25px 50px rgba(0, 0, 0, 0.5),
+    0 0 0 1px rgba(255, 255, 255, 0.05),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
   padding: 2.5rem 2rem;
   width: 100%;
   max-width: 500px;
-`;
+  position: relative;
+  overflow: hidden;
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, rgba(255, 255, 255, 0.05) 0%, rgba(255, 255, 255, 0.02) 100%);
+    pointer-events: none;
+  }
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: -2px;
+    left: -2px;
+    right: -2px;
+    bottom: -2px;
+    background: linear-gradient(45deg, 
+      rgba(0, 255, 0, 0.2) 0%,
+      rgba(255, 68, 68, 0.2) 25%,
+      rgba(255, 255, 255, 0.1) 50%,
+      rgba(0, 255, 0, 0.2) 75%,
+      rgba(255, 68, 68, 0.2) 100%
+    );
+    border-radius: 26px;
+    z-index: -1;
+    animation: borderGlow 6s linear infinite;
+    opacity: 0.3;
+  }
+
+  @keyframes borderGlow {
+    0% { background-position: 0% 50%; }
+    50% { background-position: 100% 50%; }
+    100% { background-position: 0% 50%; }
+  }
+`
 
 const Title = styled.h1`
   color: #fff;
@@ -463,4 +600,77 @@ const Button = styled.button`
     box-shadow: 0 6px 24px rgba(0,255,0,0.18);
     border-color: #00ff00;
   }
+`;
+
+// Nuevos estilos para descuentos
+const DiscountSection = styled.div`
+  background: #2a2a2a;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 2px solid #404040;
+  margin-top: 1rem;
+`;
+
+const DiscountTitle = styled.h3`
+  color: #fff;
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+`;
+
+const CheckboxContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  
+  input[type="checkbox"] {
+    accent-color: #00ff00;
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+`;
+
+const CheckboxLabel = styled.label`
+  color: #bdbdbd;
+  font-size: 1rem;
+  cursor: pointer;
+`;
+
+const PricePreview = styled.div`
+  background: #111;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-left: 4px solid #00ff00;
+`;
+
+const PreviewTitle = styled.h4`
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+`;
+
+const PriceComparison = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+`;
+
+const OriginalPrice = styled.span`
+  color: #ff4444;
+  text-decoration: line-through;
+  font-size: 1.1rem;
+`;
+
+const FinalPrice = styled.span`
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1.3rem;
+`;
+
+const Savings = styled.div`
+  color: #00ff00;
+  font-size: 0.9rem;
+  font-weight: 500;
 `;

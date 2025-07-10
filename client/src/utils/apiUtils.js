@@ -20,28 +20,14 @@ const getToken = () => {
 const apiUtils = {
   // Función fetch mejorada con manejo robusto de errores
   async fetchWithErrorHandling(url, options = {}) {
-    console.log(`=== API CALL ===`);
-    console.log(`URL: ${url}`);
-    console.log(`Method: ${options.method || 'GET'}`);
-    console.log(`Headers:`, options.headers);
-    if (options.body) {
-      console.log(`Body:`, options.body);
-    }
-    
     try {
       const response = await fetch(url, options);
-      
-      console.log(`=== API RESPONSE ===`);
-      console.log(`Status: ${response.status}`);
-      console.log(`Status Text: ${response.statusText}`);
-      console.log(`OK: ${response.ok}`);
       
       // Clonamos la respuesta para poder leerla múltiples veces
       const responseClone = response.clone();
       
       // Primero intentamos leer como texto
       const responseText = await responseClone.text();
-      console.log(`Response Text: ${responseText}`);
       
       // Si no hay contenido, manejamos según el caso
       if (!responseText) {
@@ -56,9 +42,7 @@ const apiUtils = {
       let data;
       try {
         data = JSON.parse(responseText);
-        console.log(`Parsed Data:`, data);
       } catch (parseError) {
-        console.warn(`Failed to parse JSON:`, parseError);
         // Si no es JSON pero la respuesta es exitosa, devolvemos el texto
         if (response.ok) {
           return { ok: true, data: responseText, status: response.status };
@@ -76,8 +60,6 @@ const apiUtils = {
       return { ok: true, data, status: response.status };
       
     } catch (error) {
-      console.error(`=== API ERROR ===`);
-      console.error(`Error:`, error);
       throw error;
     }
   },
@@ -92,14 +74,9 @@ const apiUtils = {
       size = 10 
     } = options;
     
-    let url;
-    if (isAdmin) {
-      url = 'http://localhost:8080/admin/books';
-    } else {
-      url = `http://localhost:8080/books?activeOnly=${activeOnly}`;
-      if (author) url += `&author=${encodeURIComponent(author)}`;
-      url += `&page=${page}&size=${size}`;
-    }
+    let url = `http://localhost:8080/books?activeOnly=${activeOnly}`;
+    if (author) url += `&author=${encodeURIComponent(author)}`;
+    url += `&page=${page}&size=${size}`;
     
     const token = getToken();
     const result = await this.fetchWithErrorHandling(url, {
@@ -127,14 +104,9 @@ const apiUtils = {
       size = 10 
     } = options;
     
-    let url;
-    if (isAdmin) {
-      url = 'http://localhost:8080/admin/musicAlbums';
-    } else {
-      url = `http://localhost:8080/musicAlbums?activeOnly=${activeOnly}`;
-      if (author) url += `&author=${encodeURIComponent(author)}`;
-      url += `&page=${page}&size=${size}`;
-    }
+    let url = `http://localhost:8080/musicAlbums?activeOnly=${activeOnly}`;
+    if (author) url += `&author=${encodeURIComponent(author)}`;
+    url += `&page=${page}&size=${size}`;
     
     const token = getToken();
     const result = await this.fetchWithErrorHandling(url, {
@@ -362,6 +334,11 @@ const apiUtils = {
     if (bookData.stock === undefined || bookData.stock === null || isNaN(bookData.stock) || Number(bookData.stock) < 0) errors.stock = 'Stock inválido';
     if (!bookData.urlImage?.trim() || !/^https?:\/\/.+\..+/.test(bookData.urlImage)) errors.urlImage = 'URL de imagen inválida';
     
+    // Validaciones de descuento
+    if (bookData.discountPercentage && (isNaN(bookData.discountPercentage) || Number(bookData.discountPercentage) < 0 || Number(bookData.discountPercentage) > 90)) {
+      errors.discountPercentage = 'El descuento debe estar entre 0% y 90%';
+    }
+    
     return errors;
   },
 
@@ -380,6 +357,11 @@ const apiUtils = {
     if (!albumData.urlImage?.trim() || !/^https?:\/\/.+\..+/.test(albumData.urlImage)) errors.urlImage = 'URL de imagen inválida';
     if (!albumData.year || isNaN(albumData.year) || Number(albumData.year) < 1000 || Number(albumData.year) > new Date().getFullYear() + 1) errors.year = 'Año inválido';
     
+    // Validaciones de descuento
+    if (albumData.discountPercentage && (isNaN(albumData.discountPercentage) || Number(albumData.discountPercentage) < 0 || Number(albumData.discountPercentage) > 90)) {
+      errors.discountPercentage = 'El descuento debe estar entre 0% y 90%';
+    }
+    
     return errors;
   },
 
@@ -396,7 +378,9 @@ const apiUtils = {
       price: Number(formData.price),
       stock: Number(formData.stock),
       urlImage: formData.urlImage.trim(),
-      ...(formData.active !== undefined && { active: formData.active })
+      ...(formData.active !== undefined && { active: formData.active }),
+      discountPercentage: Number(formData.discountPercentage) || 0,
+      discountActive: Boolean(formData.discountActive)
     };
   },
 
@@ -414,9 +398,11 @@ const apiUtils = {
       price: Number(formData.price),
       stock: Number(formData.stock),
       urlImage: formData.urlImage.trim(),
-      ...(formData.active !== undefined && { active: formData.active })
+      ...(formData.active !== undefined && { active: formData.active }),
+      discountPercentage: Number(formData.discountPercentage) || 0,
+      discountActive: Boolean(formData.discountActive)
     };
-  }
+  },
 };
 
 export default apiUtils;

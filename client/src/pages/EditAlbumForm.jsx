@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { useDispatch } from 'react-redux';
+import { invalidateAlbums } from '../store/slices/productsSlice';
 import { useAuth } from '../hooks/useAuth';
 import apiUtils from '../utils/apiUtils';
 
@@ -11,7 +13,19 @@ const API_URL = 'http://localhost:8080/musicAlbums';
 const EditAlbumForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { isAdmin } = useAuth();
+
+  // Verificar permisos de admin
+  useEffect(() => {
+    if (!isAdmin()) {
+      toast.error('No tienes permisos para editar álbumes. Solo los administradores pueden editar productos.', {
+        position: "top-right",
+        autoClose: 5000,
+      });
+      navigate('/albums');
+    }
+  }, [isAdmin, navigate]);
 
   // Estado para el formulario y carga
   const [form, setForm] = useState(null);
@@ -31,7 +45,8 @@ const EditAlbumForm = () => {
     price: useRef(null),
     stock: useRef(null),
     urlImage: useRef(null),
-    year: useRef(null)
+    year: useRef(null),
+    discountPercentage: useRef(null)
   };
 
   // Géneros disponibles según tu enum Genre
@@ -51,7 +66,10 @@ const EditAlbumForm = () => {
   useEffect(() => {
     const fetchAlbum = async () => {
       try {
-        const album = await apiUtils.getAlbum(id);
+        const userIsAdmin = isAdmin();
+        console.log('Fetching album as admin:', userIsAdmin);
+        
+        const album = await apiUtils.getAlbum(id, userIsAdmin);
         console.log('Loaded album data:', album);
         
         if (!album) {
@@ -70,7 +88,9 @@ const EditAlbumForm = () => {
           price: album.price || '',
           stock: album.stock || '',
           urlImage: Array.isArray(album.urlImage) ? album.urlImage[0] || '' : album.urlImage || '',
-          active: album.active !== undefined ? album.active : true
+          active: album.active !== undefined ? album.active : true,
+          discountPercentage: album.discountPercentage || 0,
+          discountActive: album.discountActive || false
         };
         
         console.log('Form data:', formData);
@@ -78,6 +98,20 @@ const EditAlbumForm = () => {
         setLoading(false);
       } catch (err) {
         console.error('Error loading album:', err);
+        
+        if (err.message.includes('403') || err.message.includes('Forbidden')) {
+          toast.error('No tienes permisos para editar este álbum. Solo los administradores pueden editar productos.', {
+            position: "top-right",
+            autoClose: 5000,
+          });
+          navigate('/albums');
+        } else {
+          toast.error(`Error al cargar el álbum: ${err.message}`, {
+            position: "top-right",
+            autoClose: 5000,
+          });
+        }
+        
         setForm(null);
         setLoading(false);
       }
@@ -108,15 +142,31 @@ const EditAlbumForm = () => {
     if (!fields.urlImage?.trim() || !/^https?:\/\/.+\..+/.test(fields.urlImage)) {
       newErrors.urlImage = 'URL de imagen inválida';
     }
+    
+    // Validaciones de descuento
+    if (fields.discountPercentage && (isNaN(fields.discountPercentage) || Number(fields.discountPercentage) < 0 || Number(fields.discountPercentage) > 90)) {
+      newErrors.discountPercentage = 'El descuento debe estar entre 0% y 90%';
+    }
+    
     return newErrors;
   };
 
   // --- Handlers ---
   const handleChange = e => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
+    
+    setForm(prev => ({ ...prev, [name]: newValue }));
     setTouched(prev => ({ ...prev, [name]: true }));
-    setErrors(validate({ ...form, [name]: value }));
+    setErrors(validate({ ...form, [name]: newValue }));
+    
+    // Alert para descuentos altos
+    if (name === 'discountPercentage' && Number(value) > 50) {
+      toast.warning('⚠️ Descuento alto: ¿Estás seguro de aplicar más del 50%?', {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
   };
 
   const handleGenreCheckbox = (e) => {
@@ -160,6 +210,15 @@ const EditAlbumForm = () => {
           position: "top-right",
           autoClose: 3000,
         });
+        
+        // Invalidar caché para forzar recarga
+        dispatch(invalidateAlbums());
+        
+        // Emitir evento global para actualizar carrouseles
+        window.dispatchEvent(new CustomEvent('productUpdate', {
+          detail: { productType: 'album', action: 'edit' }
+        }));
+        
         navigate('/albums');
       } catch (err) {
         console.error('Error editing album:', err);
@@ -211,6 +270,14 @@ const EditAlbumForm = () => {
         position: "top-right",
         autoClose: 3000,
       });
+      
+      // Invalidar caché para forzar recarga cuando el usuario vuelva a la lista
+      dispatch(invalidateAlbums());
+      
+      // Emitir evento global para actualizar carrouseles
+      window.dispatchEvent(new CustomEvent('productUpdate', {
+        detail: { productType: 'album', action: 'status-change' }
+      }));
     } catch (err) {
       toast.error(`Error al ${action} el álbum: ${err.message}`, {
         position: "top-right",
@@ -424,9 +491,59 @@ const EditAlbumForm = () => {
             {touched.urlImage && errors.urlImage && <ErrorMsg>{errors.urlImage}</ErrorMsg>}
           </InputGroup>
 
+          {/* Sección de Descuentos */}
+          <DiscountSection>
+            <DiscountTitle>🏷️ Configuración de Descuentos</DiscountTitle>
+            
+            <InputGroup ref={refs.discountPercentage}>
+              <Label>Descuento (%)</Label>
+              <Input
+                name="discountPercentage"
+                type="number"
+                min="0"
+                max="90"
+                step="1"
+                value={form.discountPercentage}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                $active={touched.discountPercentage && form.discountPercentage > 0}
+                $error={errors.discountPercentage}
+                placeholder="Ej: 25"
+              />
+              {touched.discountPercentage && errors.discountPercentage && <ErrorMsg>{errors.discountPercentage}</ErrorMsg>}
+              <Hint>Máximo 90% de descuento</Hint>
+            </InputGroup>
+
+            <CheckboxContainer>
+              <input
+                type="checkbox"
+                name="discountActive"
+                checked={form.discountActive}
+                onChange={handleChange}
+              />
+              <CheckboxLabel>Activar descuento</CheckboxLabel>
+            </CheckboxContainer>
+
+            {/* Preview del precio con descuento */}
+            {form.price && form.discountPercentage > 0 && (
+              <PricePreview>
+                <PreviewTitle>Vista previa del precio:</PreviewTitle>
+                <PriceComparison>
+                  <OriginalPrice>${Number(form.price).toFixed(2)}</OriginalPrice>
+                  <FinalPrice>
+                    ${(Number(form.price) * (1 - Number(form.discountPercentage) / 100)).toFixed(2)}
+                  </FinalPrice>
+                </PriceComparison>
+                <Savings>
+                  Ahorro: ${(Number(form.price) * (Number(form.discountPercentage) / 100)).toFixed(2)} ({form.discountPercentage}% OFF)
+                </Savings>
+              </PricePreview>
+            )}
+          </DiscountSection>
+
           <ButtonContainer>
             <Button type="submit">Guardar Cambios</Button>
-            {isAdmin && (
+            {isAdmin && isAdmin() && (
               <DisableButton 
                 type="button" 
                 onClick={handleToggleActive}
@@ -625,4 +742,77 @@ const DisableButton = styled.button`
     box-shadow: 0 6px 24px ${({ $isActive }) => $isActive ? 'rgba(255,59,59,0.18)' : 'rgba(0,255,0,0.18)'};
     transform: translateY(-2px);
   }
+`;
+
+// Estilos para descuentos
+const DiscountSection = styled.div`
+  background: #2a2a2a;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 2px solid #404040;
+  margin-top: 1rem;
+`;
+
+const DiscountTitle = styled.h3`
+  color: #fff;
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+`;
+
+const CheckboxContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  
+  input[type="checkbox"] {
+    accent-color: #00ff00;
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+`;
+
+const CheckboxLabel = styled.label`
+  color: #bdbdbd;
+  font-size: 1rem;
+  cursor: pointer;
+`;
+
+const PricePreview = styled.div`
+  background: #333;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-left: 4px solid #00ff00;
+`;
+
+const PreviewTitle = styled.h4`
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+`;
+
+const PriceComparison = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+`;
+
+const OriginalPrice = styled.span`
+  color: #ff4444;
+  text-decoration: line-through;
+  font-size: 1.1rem;
+`;
+
+const FinalPrice = styled.span`
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1.3rem;
+`;
+
+const Savings = styled.div`
+  color: #00ff00;
+  font-size: 0.9rem;
+  font-weight: 500;
 `;

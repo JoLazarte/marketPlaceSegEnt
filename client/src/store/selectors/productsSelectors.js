@@ -16,13 +16,12 @@ export const selectAlbumsError = (state) => state.products.albums.error;
 export const selectAlbumsGenres = (state) => state.products.albums.genres;
 export const selectAlbumsFilters = (state) => state.products.albums.filters;
 
-// Selectores para productos filtrados (sin filtrado por active ya que se hace en backend)
+// Selectores para productos filtrados
 export const selectFilteredBooks = createSelector(
   [selectBooks, selectBooksFilters],
   (books, filters) => {
     let filtered = [...books];
 
-    // Aplicar filtros existentes
     if (filters.genre !== 'Todos') {
       filtered = filtered.filter(product => 
         (product.genreBooks || []).includes(filters.genre)
@@ -41,10 +40,6 @@ export const selectFilteredBooks = createSelector(
       filtered = filtered.sort((a, b) => a.id - b.id).slice(0, 3);
     }
 
-    if (filters.promo) {
-      filtered = filtered.filter(product => product.price < 20);
-    }
-
     return filtered;
   }
 );
@@ -54,7 +49,6 @@ export const selectFilteredAlbums = createSelector(
   (albums, filters) => {
     let filtered = [...albums];
 
-    // Aplicar filtros existentes
     if (filters.genre !== 'Todos') {
       filtered = filtered.filter(product => 
         (product.genres || []).includes(filters.genre)
@@ -72,10 +66,6 @@ export const selectFilteredAlbums = createSelector(
 
     if (filters.bestseller) {
       filtered = filtered.sort((a, b) => a.id - b.id).slice(0, 3);
-    }
-
-    if (filters.promo) {
-      filtered = filtered.filter(product => product.price < 20);
     }
 
     return filtered;

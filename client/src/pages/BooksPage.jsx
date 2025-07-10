@@ -37,10 +37,6 @@ const BooksPage = () => {
     setFilter('bestseller', bestseller);
   }, [setFilter]);
 
-  const handlePromoChange = useCallback((promo) => {
-    setFilter('promo', promo);
-  }, [setFilter]);
-
   const handleRetry = useCallback(() => {
     forceFetchBooks();
   }, [forceFetchBooks]);
@@ -78,7 +74,6 @@ const BooksPage = () => {
         onGenreChange={handleGenreChange}
         onSearchChange={handleSearchChange}
         onBestsellerChange={handleBestsellerChange}
-        onPromoChange={handlePromoChange}
         addRoute="/book-form"
         addButtonText="+ Agregar Libro"
       />

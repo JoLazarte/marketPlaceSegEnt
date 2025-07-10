@@ -73,10 +73,6 @@ const filterProducts = (products, filters, genreKey) => {
     filtered = filtered.sort((a, b) => a.id - b.id).slice(0, 3);
   }
 
-  if (filters.promo) {
-    filtered = filtered.filter(product => product.price < 20);
-  }
-
   return filtered;
 };
 
@@ -93,7 +89,6 @@ const productsSlice = createSlice({
         genre: 'Todos',
         search: '',
         bestseller: false,
-        promo: false,
       },
       lastFetchParams: null, // Para evitar fetches innecesarios
     },
@@ -107,7 +102,6 @@ const productsSlice = createSlice({
         genre: 'Todos',
         search: '',
         bestseller: false,
-        promo: false,
       },
       lastFetchParams: null, // Para evitar fetches innecesarios
     },
@@ -128,7 +122,6 @@ const productsSlice = createSlice({
         genre: 'Todos',
         search: '',
         bestseller: false,
-        promo: false,
       };
       state.books.filteredData = [...state.books.data];
     },
@@ -147,9 +140,19 @@ const productsSlice = createSlice({
         genre: 'Todos',
         search: '',
         bestseller: false,
-        promo: false,
       };
       state.albums.filteredData = [...state.albums.data];
+    },
+    // Invalidar caché para forzar refetch
+    invalidateBooks: (state) => {
+      state.books.data = [];
+      state.books.filteredData = [];
+      state.books.lastFetchParams = null;
+    },
+    invalidateAlbums: (state) => {
+      state.albums.data = [];
+      state.albums.filteredData = [];
+      state.albums.lastFetchParams = null;
     },
   },
   extraReducers: (builder) => {
@@ -208,6 +211,8 @@ export const {
   resetBooksFilters,
   setAlbumsFilter,
   resetAlbumsFilters,
+  invalidateBooks,
+  invalidateAlbums,
 } = productsSlice.actions;
 
 export default productsSlice.reducer;

@@ -231,6 +231,11 @@ const CheckoutPage = () => {
             <h3>Resumen del Pedido</h3>
             {cartItems.map(item => {
               const imageSrc = getValidImageSrc(item.urlImage);
+              const originalPrice = parseFloat(item.price);
+              const hasDiscount = item.discountActive && item.discountPercentage > 0;
+              const finalPrice = hasDiscount ? originalPrice * (1 - item.discountPercentage / 100) : originalPrice;
+              const subtotal = finalPrice * item.quantity;
+              
               return (
                 <ItemRow key={item.id}>
                   {imageSrc && (
@@ -240,14 +245,47 @@ const CheckoutPage = () => {
                     <ItemTitle>{item.title}</ItemTitle>
                     <ItemDetails>
                       <span>Cantidad: {item.quantity}</span>
-                      <span>Precio unitario: ${item.price}</span>
-                      <span>Subtotal: ${(item.price * item.quantity).toFixed(2)}</span>
+                      {hasDiscount ? (
+                        <PriceWithDiscount>
+                          <DiscountInfo>
+                            <DiscountBadge>{item.discountPercentage}% OFF</DiscountBadge>
+                            <OriginalPrice>Precio original: ${originalPrice.toFixed(2)}</OriginalPrice>
+                          </DiscountInfo>
+                          <FinalPriceText>Precio con descuento: ${finalPrice.toFixed(2)}</FinalPriceText>
+                        </PriceWithDiscount>
+                      ) : (
+                        <span>Precio unitario: ${finalPrice.toFixed(2)}</span>
+                      )}
+                      <SubtotalText hasDiscount={hasDiscount}>
+                        Subtotal: ${subtotal.toFixed(2)}
+                      </SubtotalText>
                     </ItemDetails>
                   </ItemInfo>
                 </ItemRow>
               );
             })}
           </OrderSummary>
+
+          {/* Resumen de descuentos */}
+          {(() => {
+            const originalTotal = cartItems.reduce((total, item) => total + (parseFloat(item.price) * item.quantity), 0);
+            const finalTotal = getCartTotal();
+            const totalSavings = originalTotal - finalTotal;
+            const hasAnyDiscount = cartItems.some(item => item.discountActive && item.discountPercentage > 0);
+
+            return hasAnyDiscount ? (
+              <SavingsSection>
+                <SavingsRow>
+                  <span>Subtotal original:</span>
+                  <OriginalTotalAmount>${originalTotal.toFixed(2)}</OriginalTotalAmount>
+                </SavingsRow>
+                <SavingsRow>
+                  <span>Descuentos aplicados:</span>
+                  <SavingsAmount>-${totalSavings.toFixed(2)}</SavingsAmount>
+                </SavingsRow>
+              </SavingsSection>
+            ) : null;
+          })()}
 
           <TotalSection>
             <TotalLabel>Total a Pagar:</TotalLabel>
@@ -844,6 +882,80 @@ const CancelModalButton = styled.button`
     opacity: 0.5;
     cursor: not-allowed;
   }
+`;
+
+// Nuevos estilos para descuentos en checkout
+const PriceWithDiscount = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+`;
+
+const DiscountInfo = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+`;
+
+const DiscountBadge = styled.span`
+  background: #ff4444;
+  color: #fff;
+  padding: 0.2rem 0.5rem;
+  border-radius: 12px;
+  font-size: 0.75rem;
+  font-weight: bold;
+`;
+
+const OriginalPrice = styled.span`
+  color: #ff4444;
+  text-decoration: line-through;
+  font-size: 0.9rem;
+`;
+
+const FinalPriceText = styled.span`
+  color: #00ff00;
+  font-weight: bold;
+`;
+
+const SubtotalText = styled.span`
+  color: ${props => props.hasDiscount ? '#00ff00' : 'inherit'};
+  font-weight: ${props => props.hasDiscount ? 'bold' : 'normal'};
+`;
+
+// Estilos para la sección de ahorros
+const SavingsSection = styled.div`
+  background: rgba(0, 255, 0, 0.1);
+  border: 1px solid rgba(0, 255, 0, 0.3);
+  border-radius: 8px;
+  padding: 1rem;
+  margin: 1rem 0;
+`;
+
+const SavingsRow = styled.div`
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.5rem;
+  
+  &:last-child {
+    margin-bottom: 0;
+  }
+  
+  span {
+    color: #fff;
+  }
+`;
+
+const OriginalTotalAmount = styled.span`
+  color: #ff4444;
+  text-decoration: line-through;
+  font-weight: bold;
+`;
+
+const SavingsAmount = styled.span`
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1.1rem;
 `;
 
 export default CheckoutPage;

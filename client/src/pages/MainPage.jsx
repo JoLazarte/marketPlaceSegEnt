@@ -21,7 +21,7 @@ const MainPage = () => {
       )}
 
       {/* Panel de Administración - visible solo para admins */}
-      {isAdmin && (
+      {isAdmin && isAdmin() && (
         <AdminSection>
           <h2>Panel de Administración</h2>
           <ButtonGroup>
@@ -32,7 +32,7 @@ const MainPage = () => {
       )}
 
       {/* Sección de Usuario - visible para usuarios registrados */}
-      {isBuyer && (
+      {isBuyer && isBuyer() && (
         <UserSection>
           <h2>Mi Cuenta</h2>
           <ButtonGroup>

@@ -2,6 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
+import { useDispatch } from 'react-redux';
+import { invalidateBooks } from '../store/slices/productsSlice';
 import { useAuth } from '../hooks/useAuth';
 import apiUtils from '../utils/apiUtils';
 
@@ -20,6 +22,7 @@ const API_URL = 'http://localhost:8080/books';
 const EditBookForm = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const dispatch = useDispatch();
   const { isAdmin } = useAuth();
 
   const [form, setForm] = useState(null);
@@ -37,14 +40,29 @@ const EditBookForm = () => {
     genreBooks: useRef(null),
     price: useRef(null),
     stock: useRef(null),
-    urlImage: useRef(null)
+    urlImage: useRef(null),
+    discountPercentage: useRef(null)
   };
+
+  // Verificar permisos de admin
+  useEffect(() => {
+    if (!isAdmin()) {
+      toast.error('No tienes permisos para editar libros. Solo los administradores pueden editar productos.', {
+        position: "top-right",
+        autoClose: 5000,
+      });
+      navigate('/books');
+    }
+  }, [isAdmin, navigate]);
 
   // --- GET: Cargar datos del libro ---
   useEffect(() => {
     const fetchBook = async () => {
       try {
-        const book = await apiUtils.getBook(id);
+        const userIsAdmin = isAdmin();
+        console.log('Fetching book as admin:', userIsAdmin);
+        
+        const book = await apiUtils.getBook(id, userIsAdmin);
         console.log('Loaded book data:', book);
         
         if (!book) {
@@ -62,11 +80,27 @@ const EditBookForm = () => {
           price: book.price || '',
           stock: book.stock || '',
           urlImage: book.urlImage || '',
-          active: book.active !== undefined ? book.active : true
+          active: book.active !== undefined ? book.active : true,
+          discountPercentage: book.discountPercentage || 0,
+          discountActive: book.discountActive || false
         });
         setLoading(false);
       } catch (err) {
         console.error('Error loading book:', err);
+        
+        if (err.message.includes('403') || err.message.includes('Forbidden')) {
+          toast.error('No tienes permisos para editar este libro. Solo los administradores pueden editar productos.', {
+            position: "top-right",
+            autoClose: 5000,
+          });
+          navigate('/books');
+        } else {
+          toast.error(`Error al cargar el libro: ${err.message}`, {
+            position: "top-right",
+            autoClose: 5000,
+          });
+        }
+        
         setForm(null);
         setLoading(false);
       }
@@ -92,15 +126,31 @@ const EditBookForm = () => {
     if (!fields.price || isNaN(fields.price) || Number(fields.price) <= 0) newErrors.price = 'Precio inválido';
     if (!fields.stock || isNaN(fields.stock) || Number(fields.stock) < 0) newErrors.stock = 'Stock inválido';
     if (!fields.urlImage?.trim() || !/^https?:\/\/.+\..+/.test(fields.urlImage)) newErrors.urlImage = 'URL de imagen inválida';
+    
+    // Validaciones de descuento
+    if (fields.discountPercentage && (isNaN(fields.discountPercentage) || Number(fields.discountPercentage) < 0 || Number(fields.discountPercentage) > 90)) {
+      newErrors.discountPercentage = 'El descuento debe estar entre 0% y 90%';
+    }
+    
     return newErrors;
   };
 
   // --- Handlers ---
   const handleChange = e => {
-    const { name, value } = e.target;
-    setForm(prev => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    const newValue = type === 'checkbox' ? checked : value;
+    
+    setForm(prev => ({ ...prev, [name]: newValue }));
     setTouched(prev => ({ ...prev, [name]: true }));
-    setErrors(validate({ ...form, [name]: value }));
+    setErrors(validate({ ...form, [name]: newValue }));
+    
+    // Alert para descuentos altos
+    if (name === 'discountPercentage' && Number(value) > 50) {
+      toast.warning('⚠️ Descuento alto: ¿Estás seguro de aplicar más del 50%?', {
+        position: "top-right",
+        autoClose: 3000,
+      });
+    }
   };
 
   const handleGenreCheckbox = (e) => {
@@ -144,6 +194,15 @@ const EditBookForm = () => {
           position: "top-right",
           autoClose: 3000,
         });
+        
+        // Invalidar caché para forzar recarga
+        dispatch(invalidateBooks());
+        
+        // Emitir evento global para actualizar carrouseles
+        window.dispatchEvent(new CustomEvent('productUpdate', {
+          detail: { productType: 'book', action: 'edit' }
+        }));
+        
         navigate('/books');
       } catch (err) {
         console.error('Error editing book:', err);
@@ -195,6 +254,14 @@ const EditBookForm = () => {
         position: "top-right",
         autoClose: 3000,
       });
+      
+      // Invalidar caché para forzar recarga cuando el usuario vuelva a la lista
+      dispatch(invalidateBooks());
+      
+      // Emitir evento global para actualizar carrouseles
+      window.dispatchEvent(new CustomEvent('productUpdate', {
+        detail: { productType: 'book', action: 'status-change' }
+      }));
     } catch (err) {
       toast.error(`Error al ${action} el libro: ${err.message}`, {
         position: "top-right",
@@ -380,10 +447,60 @@ const EditBookForm = () => {
             />
             {touched.urlImage && errors.urlImage && <ErrorMsg>{errors.urlImage}</ErrorMsg>}
           </InputGroup>
+
+          {/* Sección de Descuentos */}
+          <DiscountSection>
+            <DiscountTitle>🏷️ Configuración de Descuentos</DiscountTitle>
+            
+            <InputGroup ref={refs.discountPercentage}>
+              <Label>Descuento (%)</Label>
+              <Input
+                name="discountPercentage"
+                type="number"
+                min="0"
+                max="90"
+                step="1"
+                value={form.discountPercentage}
+                onChange={handleChange}
+                onBlur={handleBlur}
+                $active={touched.discountPercentage && form.discountPercentage > 0}
+                $error={errors.discountPercentage}
+                placeholder="Ej: 25"
+              />
+              {touched.discountPercentage && errors.discountPercentage && <ErrorMsg>{errors.discountPercentage}</ErrorMsg>}
+              <Hint>Máximo 90% de descuento</Hint>
+            </InputGroup>
+
+            <CheckboxContainer>
+              <input
+                type="checkbox"
+                name="discountActive"
+                checked={form.discountActive}
+                onChange={handleChange}
+              />
+              <CheckboxLabel>Activar descuento</CheckboxLabel>
+            </CheckboxContainer>
+
+            {/* Preview del precio con descuento */}
+            {form.price && form.discountPercentage > 0 && (
+              <PricePreview>
+                <PreviewTitle>Vista previa del precio:</PreviewTitle>
+                <PriceComparison>
+                  <OriginalPrice>${Number(form.price).toFixed(2)}</OriginalPrice>
+                  <FinalPrice>
+                    ${(Number(form.price) * (1 - Number(form.discountPercentage) / 100)).toFixed(2)}
+                  </FinalPrice>
+                </PriceComparison>
+                <Savings>
+                  Ahorro: ${(Number(form.price) * (Number(form.discountPercentage) / 100)).toFixed(2)} ({form.discountPercentage}% OFF)
+                </Savings>
+              </PricePreview>
+            )}
+          </DiscountSection>
           
           <ButtonContainer>
             <Button type="submit">Guardar Cambios</Button>
-            {isAdmin && (
+            {isAdmin && isAdmin() && (
               <DisableButton 
                 type="button" 
                 onClick={handleToggleActive}
@@ -582,4 +699,77 @@ const DisableButton = styled.button`
     box-shadow: 0 6px 24px ${({ $isActive }) => $isActive ? 'rgba(255,59,59,0.18)' : 'rgba(0,255,0,0.18)'};
     transform: translateY(-2px);
   }
+`;
+
+// Estilos para descuentos
+const DiscountSection = styled.div`
+  background: #2a2a2a;
+  border-radius: 12px;
+  padding: 1.5rem;
+  border: 2px solid #404040;
+  margin-top: 1rem;
+`;
+
+const DiscountTitle = styled.h3`
+  color: #fff;
+  margin: 0 0 1rem 0;
+  font-size: 1.2rem;
+`;
+
+const CheckboxContainer = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 1rem;
+  
+  input[type="checkbox"] {
+    accent-color: #00ff00;
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+`;
+
+const CheckboxLabel = styled.label`
+  color: #bdbdbd;
+  font-size: 1rem;
+  cursor: pointer;
+`;
+
+const PricePreview = styled.div`
+  background: #333;
+  border-radius: 8px;
+  padding: 1rem;
+  margin-top: 1rem;
+  border-left: 4px solid #00ff00;
+`;
+
+const PreviewTitle = styled.h4`
+  color: #fff;
+  margin: 0 0 0.5rem 0;
+  font-size: 1rem;
+`;
+
+const PriceComparison = styled.div`
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+`;
+
+const OriginalPrice = styled.span`
+  color: #ff4444;
+  text-decoration: line-through;
+  font-size: 1.1rem;
+`;
+
+const FinalPrice = styled.span`
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1.3rem;
+`;
+
+const Savings = styled.div`
+  color: #00ff00;
+  font-size: 0.9rem;
+  font-weight: 500;
 `;

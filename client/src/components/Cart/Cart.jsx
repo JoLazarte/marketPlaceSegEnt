@@ -6,6 +6,7 @@ import { useNavigate } from 'react-router-dom';
 import { useBuys } from '../../hooks/useBuys';
 import { useDispatch } from 'react-redux';
 import { setBuyId } from '../../store/slices/buySlice';
+import CartItemComponent from './CartItem';
 
 const Cart = ({ isOpen, onClose }) => {
   const { canViewCart, role, token } = useAuth();
@@ -109,47 +110,38 @@ const Cart = ({ isOpen, onClose }) => {
           ) : (
             <>
               {cartItems.map(item => (
-                <CartItem key={item.id}>
-                  <ItemHeader>
-                    <ItemTitle>{item.title}</ItemTitle>
-                    <RemoveButton onClick={() => removeFromCart(item.id)}>
-                      Eliminar
-                    </RemoveButton>
-                  </ItemHeader>
-                  <ItemContent>
-                    <ItemImageContainer>
-                      <ItemImage 
-                        src={getImageUrl(item)} 
-                        alt={item.title}
-                      />
-                    </ItemImageContainer>
-                    <ItemDetails>
-                      <ItemPrice>${item.price}</ItemPrice>
-                      <QuantityControls>
-                        <QuantityButton 
-                          onClick={() => handleQuantityChange(item, item.quantity - 1)}
-                          disabled={loading}
-                        >
-                          -
-                        </QuantityButton>
-                        <QuantityDisplay>{item.quantity}</QuantityDisplay>
-                        <QuantityButton 
-                          onClick={() => handleQuantityChange(item, item.quantity + 1)}
-                          disabled={loading || item.quantity >= item.stock}
-                        >
-                          +
-                        </QuantityButton>
-                      </QuantityControls>
-                      <StockInfo>Stock disponible: {item.stock}</StockInfo>
-                    </ItemDetails>
-                  </ItemContent>
-                </CartItem>
+                <CartItemComponent 
+                  key={item.id}
+                  item={item}
+                  onRemove={removeFromCart}
+                  onQuantityChange={handleQuantityChange}
+                  loading={loading}
+                />
               ))}
 
               <CartFooter>
-                <Total>
-                  Total: ${getCartTotal().toFixed(2)}
-                </Total>
+                {(() => {
+                  const originalTotal = cartItems.reduce((total, item) => total + (parseFloat(item.price) * item.quantity), 0);
+                  const finalTotal = getCartTotal();
+                  const totalSavings = originalTotal - finalTotal;
+                  const hasAnyDiscount = cartItems.some(item => item.discountActive && item.discountPercentage > 0);
+
+                  return hasAnyDiscount ? (
+                    <>
+                      <SavingsInfo>
+                        <OriginalTotal>Total original: ${originalTotal.toFixed(2)}</OriginalTotal>
+                        <SavingsAmount>Ahorras: ${totalSavings.toFixed(2)}</SavingsAmount>
+                      </SavingsInfo>
+                      <Total>
+                        Total: ${finalTotal.toFixed(2)}
+                      </Total>
+                    </>
+                  ) : (
+                    <Total>
+                      Total: ${finalTotal.toFixed(2)}
+                    </Total>
+                  );
+                })()}
                 <CheckoutButton 
                   onClick={handleCheckout}
                   disabled={loading || buyLoading}
@@ -347,6 +339,25 @@ const Total = styled.div`
   font-size: 1.2rem;
   font-weight: 600;
   text-align: right;
+`;
+
+// Nuevos estilos para información de ahorros en carrito
+const SavingsInfo = styled.div`
+  text-align: right;
+  margin-bottom: 0.5rem;
+`;
+
+const OriginalTotal = styled.div`
+  color: #ff4444;
+  text-decoration: line-through;
+  font-size: 0.9rem;
+  margin-bottom: 0.25rem;
+`;
+
+const SavingsAmount = styled.div`
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1rem;
 `;
 
 const CheckoutButton = styled.button`

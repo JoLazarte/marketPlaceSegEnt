@@ -7,7 +7,9 @@ import {
   setBooksFilter,
   setAlbumsFilter,
   resetBooksFilters,
-  resetAlbumsFilters 
+  resetAlbumsFilters,
+  invalidateBooks,
+  invalidateAlbums 
 } from '../store/slices/productsSlice';
 import {
   selectBooks,
@@ -31,13 +33,16 @@ export const useBooks = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, isAdmin } = useAuth();
   
-  const books = useSelector(state => selectFilteredBooks(state));
+  const booksFromSelector = useSelector(state => selectFilteredBooks(state));
   const loading = useSelector(selectBooksLoading);
   const error = useSelector(selectBooksError);
   const genres = useSelector(selectBooksGenres);
   const filters = useSelector(selectBooksFilters);
   const allBooks = useSelector(selectBooks);
   const booksState = useSelector(selectBooksState);
+
+  // Usar los libros filtrados directamente
+  const books = booksFromSelector;
 
   const fetchBooksData = useCallback(() => {
     const isUserAdmin = isAdmin();
@@ -49,7 +54,6 @@ export const useBooks = () => {
                         booksState.lastFetchParams.isAdmin !== isUserAdmin;
     
     if (needsRefetch && !loading) {
-      console.log('Fetching books for user:', { isAdmin: isUserAdmin, activeOnly: shouldFetchOnlyActive });
       dispatch(fetchBooks({ 
         isAdmin: isUserAdmin, 
         activeOnly: shouldFetchOnlyActive 
@@ -76,6 +80,10 @@ export const useBooks = () => {
     dispatch(resetBooksFilters());
   }, [dispatch]);
 
+  const invalidateBooksCache = useCallback(() => {
+    dispatch(invalidateBooks());
+  }, [dispatch]);
+
   return {
     books,
     loading,
@@ -86,6 +94,7 @@ export const useBooks = () => {
     forceFetchBooks,
     setFilter,
     resetFilters,
+    invalidateBooksCache,
     isAdmin: isAdmin()
   };
 };
@@ -95,13 +104,16 @@ export const useAlbums = () => {
   const dispatch = useDispatch();
   const { isAuthenticated, isAdmin } = useAuth();
   
-  const albums = useSelector(state => selectFilteredAlbums(state));
+  const albumsFromSelector = useSelector(state => selectFilteredAlbums(state));
   const loading = useSelector(selectAlbumsLoading);
   const error = useSelector(selectAlbumsError);
   const genres = useSelector(selectAlbumsGenres);
   const filters = useSelector(selectAlbumsFilters);
   const allAlbums = useSelector(selectAlbums);
   const albumsState = useSelector(selectAlbumsState);
+
+  // Usar los álbumes filtrados directamente
+  const albums = albumsFromSelector;
 
   const fetchAlbumsData = useCallback(() => {
     const isUserAdmin = isAdmin();
@@ -140,6 +152,10 @@ export const useAlbums = () => {
     dispatch(resetAlbumsFilters());
   }, [dispatch]);
 
+  const invalidateAlbumsCache = useCallback(() => {
+    dispatch(invalidateAlbums());
+  }, [dispatch]);
+
   return {
     albums,
     loading,
@@ -150,6 +166,7 @@ export const useAlbums = () => {
     forceFetchAlbums,
     setFilter,
     resetFilters,
+    invalidateAlbumsCache,
     isAdmin: isAdmin()
   };
 };

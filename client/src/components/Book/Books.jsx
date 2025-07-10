@@ -1,11 +1,10 @@
-import React, { useRef, useEffect, useState } from 'react';
+import React, { useRef, useEffect, useCallback } from 'react';
 import Slider from 'react-slick';
 import styled from 'styled-components';
 import ProductCardBook from './ProductCardBook';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-
-const API_URL = 'http://localhost:8080/books';
+import { useBooks } from '../../hooks/useProducts';
 
 const settings = {
   dots: true,
@@ -24,29 +23,58 @@ const settings = {
 
 const Books = () => {
   const arrowRef = useRef(null);
-  const [books, setBooks] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { canEditProducts } = useAuth();
   const navigate = useNavigate();
+  
+  // Usar el hook personalizado para obtener los libros desde Redux
+  const { books, loading, fetchBooksData, forceFetchBooks } = useBooks();
 
+  // Fetch books cuando el componente se monta
   useEffect(() => {
-    const fetchBooks = async () => {
-      try {
-        const res = await fetch(API_URL);
-        const data = await res.json();
-        if (data && Array.isArray(data.content)) {
-          setBooks(data.content);
-        } else {
-          setBooks([]);
-        }
-      } catch (err) {
-        setBooks([]);
-      } finally {
-        setLoading(false);
+    fetchBooksData();
+  }, [fetchBooksData]);
+
+  // Listener para cambios globales de productos
+  useEffect(() => {
+    const handleProductUpdate = (event) => {
+      const { productType, action } = event.detail || {};
+      if (productType === 'book' || action === 'global-refresh') {
+        console.log('Global book update detected in carousel, refreshing...');
+        setTimeout(() => {
+          forceFetchBooks();
+        }, 500);
       }
     };
-    fetchBooks();
-  }, []);
+
+    // Escuchar eventos globales de actualización
+    window.addEventListener('productUpdate', handleProductUpdate);
+    
+    return () => {
+      window.removeEventListener('productUpdate', handleProductUpdate);
+    };
+  }, [forceFetchBooks]);
+
+  // Efecto adicional para detectar cambios en la longitud de books
+  useEffect(() => {
+    // Si no hay books pero tampoco está cargando, intentar refetch
+    if (!books || books.length === 0 && !loading) {
+      const timer = setTimeout(() => {
+        console.log('No books detected, attempting refresh...');
+        fetchBooksData();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [books, loading, fetchBooksData]);
+
+  // Handler para cambio de estado de productos
+  const handleStatusChange = useCallback((id, newStatus) => {
+    console.log('Status changed for book in carousel:', id, 'New status:', newStatus);
+    // Refetch para actualizar la lista del carousel
+    setTimeout(() => {
+      forceFetchBooks();
+    }, 500);
+  }, [forceFetchBooks]);
 
   if (loading) {
     return <div style={{color: "#fff", textAlign: "center", padding: "2rem"}}>Cargando libros...</div>;
@@ -65,7 +93,11 @@ const Books = () => {
       )}
       <Slider className="marginCard" ref={arrowRef} {...settings}>
         {books.filter(item => item && item.id).map(item => (
-          <ProductCardBook item={item} key={item.id} />
+          <ProductCardBook 
+            item={item} 
+            key={item.id} 
+            onStatusChange={handleStatusChange}
+          />
         ))}
       </Slider>
       <Buttons>

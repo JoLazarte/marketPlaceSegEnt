@@ -120,6 +120,15 @@
   text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
 }
 
+/* Estilos para precios con descuento */
+.price-container {
+  margin: 10px 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
 .container.disabled {
   opacity: 0.5;
   pointer-events: none;
@@ -259,4 +268,57 @@
   box-shadow: 0 2px 12px rgba(0,0,0,0.25);
   z-index: 2;
   text-shadow: 0 2px 8px #000;
+}
+
+/* Estilos para descuentos */
+.discount-badge {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: linear-gradient(135deg, #ff4444 0%, #cc0000 100%);
+  color: white;
+  padding: 0.3rem 0.6rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: bold;
+  z-index: 3;
+  box-shadow: 0 2px 8px rgba(255, 68, 68, 0.3);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+  100% { transform: scale(1); }
+}
+
+.price-container {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  margin-top: 0.5rem;
+}
+
+.original-price {
+  color: #ff4444;
+  text-decoration: line-through;
+  font-size: 0.9rem;
+  margin: 0;
+  opacity: 0.8;
+}
+
+.final-price {
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin: 0;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
+}
+
+.price {
+  color: #00ff00;
+  font-weight: bold;
+  font-size: 1.1rem;
+  margin: 0;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
 }

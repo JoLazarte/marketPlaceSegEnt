@@ -52,6 +52,14 @@ export const useAuth = () => {
     return user?.role === 'ADMIN';
   }, [user?.role]);
 
+  const canEditProducts = useCallback(() => {
+    return user?.role === 'ADMIN';
+  }, [user?.role]);
+
+  const isBuyer = useCallback(() => {
+    return user?.role === 'BUYER';
+  }, [user?.role]);
+
   return {
     user,
     isAuthenticated,
@@ -62,6 +70,8 @@ export const useAuth = () => {
     role,
     canViewCart,
     isAdmin,
+    canEditProducts,
+    isBuyer,
     handleLogin,
     handleRegister,
     handleLogout,

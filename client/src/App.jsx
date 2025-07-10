@@ -72,7 +72,8 @@ const App = () => {
           pauseOnHover
           theme="dark"
           style={{
-            fontSize: '14px'
+            fontSize: '14px',
+            top: '150px'
           }}
         />
       </PersistGate>

@@ -1,12 +1,11 @@
-import React, { useRef, useEffect, useState } from 'react'
+import React, { useRef, useEffect, useCallback } from 'react'
 import Slider from 'react-slick'
 import styled from 'styled-components'
 import ProductCardDiscs from './ProductCardDiscs';
 import { SlArrowLeft, SlArrowRight } from "react-icons/sl";
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
-
-const API_URL = 'http://localhost:8080/musicAlbums';
+import { useAlbums } from '../../hooks/useProducts';
 
 const settings = {
   dots: true,
@@ -25,36 +24,65 @@ const settings = {
 
 const Discs = () => {
   const arrowRef = useRef(null);
-  const [discs, setDiscs] = useState([]);
-  const [loading, setLoading] = useState(true);
   const { canEditProducts } = useAuth();
   const navigate = useNavigate();
+  
+  // Usar el hook personalizado para obtener los álbumes desde Redux
+  const { albums, loading, fetchAlbumsData, forceFetchAlbums } = useAlbums();
 
+  // Fetch albums cuando el componente se monta
   useEffect(() => {
-    const fetchDiscs = async () => {
-      try {
-        const res = await fetch(API_URL);
-        const data = await res.json();
-        if (data && Array.isArray(data.content)) {
-          setDiscs(data.content);
-        } else {
-          setDiscs([]);
-        }
-      } catch (err) {
-        setDiscs([]);
-      } finally {
-        setLoading(false);
+    fetchAlbumsData();
+  }, [fetchAlbumsData]);
+
+  // Listener para cambios globales de productos
+  useEffect(() => {
+    const handleProductUpdate = (event) => {
+      const { productType, action } = event.detail || {};
+      if (productType === 'album' || action === 'global-refresh') {
+        console.log('Global album update detected in carousel, refreshing...');
+        setTimeout(() => {
+          forceFetchAlbums();
+        }, 500);
       }
     };
-    fetchDiscs();
-  }, []);
+
+    // Escuchar eventos globales de actualización
+    window.addEventListener('productUpdate', handleProductUpdate);
+    
+    return () => {
+      window.removeEventListener('productUpdate', handleProductUpdate);
+    };
+  }, [forceFetchAlbums]);
+
+  // Efecto adicional para detectar cambios en la longitud de albums
+  useEffect(() => {
+    // Si no hay albums pero tampoco está cargando, intentar refetch
+    if (!albums || albums.length === 0 && !loading) {
+      const timer = setTimeout(() => {
+        console.log('No albums detected, attempting refresh...');
+        fetchAlbumsData();
+      }, 1000);
+      
+      return () => clearTimeout(timer);
+    }
+  }, [albums, loading, fetchAlbumsData]);
+
+  // Handler para cambio de estado de productos
+  const handleStatusChange = useCallback((id, newStatus) => {
+    console.log('Status changed for album in carousel:', id, 'New status:', newStatus);
+    // Refetch para actualizar la lista del carousel
+    setTimeout(() => {
+      forceFetchAlbums();
+    }, 500);
+  }, [forceFetchAlbums]);
 
   if (loading) {
-    return <div style={{color: "#fff", textAlign: "center", padding: "2rem"}}>Cargando discos...</div>;
+    return <div style={{color: "#fff", textAlign: "center", padding: "2rem"}}>Cargando álbumes...</div>;
   }
 
-  if (!discs.length) {
-    return <div style={{color: "#fff", textAlign: "center", padding: "2rem"}}>No hay discos disponibles.</div>;
+  if (!albums || !albums.length) {
+    return <div style={{color: "#fff", textAlign: "center", padding: "2rem"}}>No hay álbumes disponibles.</div>;
   }
 
   return (
@@ -65,8 +93,12 @@ const Discs = () => {
         </AddButton>
       )}
       <Slider className="marginCard" ref={arrowRef} {...settings}>
-        {discs.filter(item => item && item.id).map(item => (
-          <ProductCardDiscs item={item} key={item.id} />
+        {albums.filter(item => item && item.id).map(item => (
+          <ProductCardDiscs 
+            item={item} 
+            key={item.id} 
+            onStatusChange={handleStatusChange}
+          />
         ))}
       </Slider>
       <Buttons>

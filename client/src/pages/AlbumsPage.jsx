@@ -37,10 +37,6 @@ const AlbumsPage = () => {
     setFilter('bestseller', bestseller);
   }, [setFilter]);
 
-  const handlePromoChange = useCallback((promo) => {
-    setFilter('promo', promo);
-  }, [setFilter]);
-
   const handleRetry = useCallback(() => {
     forceFetchAlbums();
   }, [forceFetchAlbums]);
@@ -78,7 +74,6 @@ const AlbumsPage = () => {
         onGenreChange={handleGenreChange}
         onSearchChange={handleSearchChange}
         onBestsellerChange={handleBestsellerChange}
-        onPromoChange={handlePromoChange}
         addRoute="/album-form"
         addButtonText="+ Agregar Álbum"
       />
