@@ -13,8 +13,8 @@ const getToken = () => {
   if (getTokenFromRedux) {
     return getTokenFromRedux();
   }
-  // Fallback a localStorage para compatibilidad
-  return localStorage.getItem('token');
+  // Si no existe en Redux, retornamos null o una cadena vacía
+  return null;
 };
 
 const apiUtils = {

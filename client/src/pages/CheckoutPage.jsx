@@ -1,33 +1,66 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { useDispatch, useSelector } from 'react-redux'; // NUEVO
+import { useDispatch, useSelector } from 'react-redux'; 
 import styled from 'styled-components';
-import { useCart } from '../context/CartContext';
-import { useAuth } from '../hooks/useAuth';
+import { useCart } from '../hooks/useCart';
+
 import { useBuys } from '../hooks/useBuys';
 import { seleccionarMetodoDePago, limpiarMetodoDePago } from '../store/slices/pagoSlice'; // NUEVO
+import { clearBuyId } from '../store/slices/buySlice';
+import { toast } from 'react-toastify';
+
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
-  const dispatch = useDispatch(); // NUEVO
+  const dispatch = useDispatch(); 
   const { cartItems, getCartTotal, clearCart } = useCart();
-  const { user, token } = useAuth();
+  const { user, token } = useSelector((state) => state.auth);
   const { confirmBuy, emptyBuy, loading, error } = useBuys();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
 
-  // NUEVO: Obtener método de pago seleccionado desde Redux
+  // Estados para el formulario de tarjeta
+  const [cardData, setCardData] = useState({
+    cardNumber: '',
+    cardName: '',
+    cardExpiry: '',
+    cardCVV: ''
+  });
+
+  //Obtener método de pago seleccionado desde Redux
   const metodoSeleccionado = useSelector((state) => state.pago.metodoSeleccionado);
+  const buyId = useSelector((state) => state.buy.buyId); 
 
   // NUEVO: Función para manejar selección de método de pago
   const handleSeleccionarMetodo = (metodo) => {
     dispatch(seleccionarMetodoDePago(metodo));
   };
 
-  const handleCancel = async () => {
-    // Obtener el ID de la compra
-    const buyId = localStorage.getItem('currentBuyId');
+  // Función para manejar cambios en el formulario
+  const handleCardInputChange = (e) => {
+    const { name, value } = e.target;
+    setCardData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  // Función para procesar el pago con tarjeta
+  const handleCardSubmit = (e) => {
+    e.preventDefault();
     
+    // Validar datos de tarjeta
+    if (!cardData.cardNumber || !cardData.cardName || !cardData.cardExpiry || !cardData.cardCVV) {
+      toast.error('Por favor, completa todos los campos de la tarjeta');
+      return;
+    }
+    
+    // Procesar pago con tarjeta
+    handleConfirmPurchase();
+  };
+
+  const handleCancel = async () => {
+ 
     if (!buyId) {
       // Si no hay buyId, simplemente volver atrás
       navigate(-1);
@@ -40,24 +73,16 @@ const CheckoutPage = () => {
 
   const handleConfirmCancel = async () => {
     try {
-      const buyId = localStorage.getItem('currentBuyId');
-      
-      // Vaciar la compra en el backend
       await emptyBuy(buyId, token);
-      
-      // Limpiar localStorage y carrito
-      localStorage.removeItem('currentBuyId');
+      dispatch(clearBuyId());
       clearCart();
-      
-      // NUEVO: Limpiar método de pago seleccionado
       dispatch(limpiarMetodoDePago());
-      
-      // Cerrar modal y volver al home
       setShowCancelModal(false);
       navigate('/');
+      toast.info("Compra cancelada correctamente");
     } catch (err) {
       console.error('Error al cancelar la compra:', err);
-      alert('Error al cancelar la compra. Por favor, intenta nuevamente.');
+      toast.error("❌ Error al cancelar la compra. Por favor, intenta nuevamente.");
     }
   };
 
@@ -66,47 +91,53 @@ const CheckoutPage = () => {
   };
 
   const handleConfirmPurchase = async () => {
-    // NUEVO: Validar que se haya seleccionado un método de pago
+    //Validar que se haya seleccionado un método de pago
     if (!metodoSeleccionado) {
-      alert('Por favor, selecciona un método de pago antes de confirmar la compra.');
+      toast.warning('Por favor, selecciona un método de pago antes de confirmar la compra.');
       return;
     }
-
+    // Validar datos de tarjeta si es necesario
+    if (metodoSeleccionado === 'tarjeta') {
+      if (!cardData.cardNumber || !cardData.cardName || !cardData.cardExpiry || !cardData.cardCVV) {
+        toast.error('Por favor, completa todos los campos de la tarjeta');
+        return;
+      }
+    }
     try {
-      // Obtener el ID de la compra que se guardó en localStorage
-      const buyId = localStorage.getItem('currentBuyId');
-      
+     
       if (!buyId) {
         throw new Error('No se encontró el ID de la compra. Por favor, vuelve al carrito e intenta nuevamente.');
       }
 
-      // FUTURA INTEGRACIÓN: Aquí se procesará según el método de pago seleccionado
+      // Procesar según el método de pago seleccionado
       if (metodoSeleccionado === 'mercadopago') {
-        // FUTURA INTEGRACIÓN: Integrar API de Mercado Pago
         console.log('Procesando pago con Mercado Pago...');
-        // await procesarPagoMercadoPago(buyId, getCartTotal());
       } else if (metodoSeleccionado === 'paypal') {
-        // FUTURA INTEGRACIÓN: Integrar API de PayPal
         console.log('Procesando pago con PayPal...');
-        // await procesarPagoPayPal(buyId, getCartTotal());
       } else if (metodoSeleccionado === 'efectivo') {
-        // Para efectivo, continuar con la confirmación normal
         console.log('Pago en efectivo confirmado');
+      } else if (metodoSeleccionado === 'tarjeta') {
+        console.log('Procesando pago con tarjeta...', cardData);
       }
 
       const confirmedBuy = await confirmBuy(buyId, token);
       console.log('Compra confirmada:', confirmedBuy);
 
+      // Verificar respuesta del servidor
+      if (confirmedBuy?.ok === true || confirmedBuy?.confirmed === true) {
+        toast.success("✅ ¡Compra realizada con éxito!");
       clearCart();
-      localStorage.removeItem('currentBuyId');
-      
-      // NUEVO: Limpiar método de pago después de confirmar
+      dispatch(clearBuyId());
       dispatch(limpiarMetodoDePago());
-      
       setShowSuccessModal(true);
+    
+    } else {
+        toast.error("❌ Hubo un problema al procesar la compra");
+      }
       
     } catch (err) {
       console.error('Error en la compra:', err);
+      toast.error("❌ Hubo un problema al procesar la compra");
     }
   };
 
@@ -115,33 +146,107 @@ const CheckoutPage = () => {
     navigate('/');
   };
 
+  // Función para obtener imagen válida
+  const getValidImageSrc = (urlImage) => {
+    if (!urlImage) return null;
+    if (Array.isArray(urlImage)) {
+      return urlImage[0] || null;
+    }
+    return urlImage || null;
+  };
+
+  // Renderizar contenido adicional según el método de pago
+  const renderPaymentMethodContent = () => {
+    if (metodoSeleccionado === 'mercadopago' || metodoSeleccionado === 'paypal') {
+      return (
+        <PaymentMethodMessage>
+          🛠 Este método está en construcción. Elegí otro para continuar.
+        </PaymentMethodMessage>
+      );
+    } else if (metodoSeleccionado === 'tarjeta') {
+      return (
+        <CardForm onSubmit={handleCardSubmit}>
+          <CardFormGroup>
+            <CardLabel>Número de tarjeta</CardLabel>
+            <CardInput
+              type="text"
+              name="cardNumber"
+              placeholder="1234 5678 9012 3456"
+              value={cardData.cardNumber}
+              onChange={handleCardInputChange}
+              required
+            />
+          </CardFormGroup>
+          <CardFormGroup>
+            <CardLabel>Nombre del titular</CardLabel>
+            <CardInput
+              type="text"
+              name="cardName"
+              placeholder="Como aparece en la tarjeta"
+              value={cardData.cardName}
+              onChange={handleCardInputChange}
+              required
+            />
+          </CardFormGroup>
+          <CardFormRow>
+            <CardFormGroup style={{ flex: 1 }}>
+              <CardLabel>Fecha de vencimiento</CardLabel>
+              <CardInput
+                type="text"
+                name="cardExpiry"
+                placeholder="MM/AA"
+                value={cardData.cardExpiry}
+                onChange={handleCardInputChange}
+                required
+              />
+            </CardFormGroup>
+            <CardFormGroup style={{ flex: 1 }}>
+              <CardLabel>CVV</CardLabel>
+              <CardInput
+                type="text"
+                name="cardCVV"
+                placeholder="123"
+                value={cardData.cardCVV}
+                onChange={handleCardInputChange}
+                required
+              />
+            </CardFormGroup>
+          </CardFormRow>
+          <CardButton type="submit" disabled={loading}>
+            {loading ? 'Procesando...' : 'Finalizar Pago'}
+          </CardButton>
+        </CardForm>
+      );
+    }
+    return null;
+  };
+
   return (
     <>
       <Container>
         <CheckoutCard>
           <Title>Confirmar Compra</Title>
-          
-          <UserInfo>
-            <h3>Información del Cliente</h3>
-            <p>Nombre: {user.firstName} {user.lastName}</p>
-            <p>Email: {user.email}</p>
-          </UserInfo>
-
+         
           <OrderSummary>
             <h3>Resumen del Pedido</h3>
-            {cartItems.map(item => (
-              <ItemRow key={item.id}>
-                <ItemImage src={Array.isArray(item.urlImage) ? item.urlImage[0] : item.urlImage} alt={item.title} />
-                <ItemInfo>
-                  <ItemTitle>{item.title}</ItemTitle>
-                  <ItemDetails>
-                    <span>Cantidad: {item.quantity}</span>
-                    <span>Precio unitario: ${item.price}</span>
-                    <span>Subtotal: ${(item.price * item.quantity).toFixed(2)}</span>
-                  </ItemDetails>
-                </ItemInfo>
-              </ItemRow>
-            ))}
+            {cartItems.map(item => {
+              const imageSrc = getValidImageSrc(item.urlImage);
+              return (
+                <ItemRow key={item.id}>
+                  {imageSrc && (
+                    <ItemImage src={imageSrc} alt={item.title} />
+                  )}
+                  <ItemInfo>
+                    <ItemTitle>{item.title}</ItemTitle>
+                    <ItemDetails>
+                      <span>Cantidad: {item.quantity}</span>
+                      <span>Precio unitario: ${item.price}</span>
+                      <span>Subtotal: ${(item.price * item.quantity).toFixed(2)}</span>
+                    </ItemDetails>
+                  </ItemInfo>
+                </ItemRow>
+              );
+            })}
           </OrderSummary>
 
           <TotalSection>
@@ -149,12 +254,12 @@ const CheckoutPage = () => {
             <TotalAmount>${getCartTotal().toFixed(2)}</TotalAmount>
           </TotalSection>
 
-          {/* NUEVA SECCIÓN: Métodos de Pago */}
+           {/* SECCIÓN DE MÉTODOS DE PAGO */}
           <PaymentSection>
             <h3>Método de Pago</h3>
             <PaymentMethods>
               <PaymentMethod 
-                $selected={metodoSeleccionado === 'mercadopago'}
+                className={metodoSeleccionado === 'mercadopago' ? 'seleccionado' : ''}
                 onClick={() => handleSeleccionarMetodo('mercadopago')}
               >
                 <PaymentIcon>💳</PaymentIcon>
@@ -162,7 +267,7 @@ const CheckoutPage = () => {
               </PaymentMethod>
 
               <PaymentMethod 
-                $selected={metodoSeleccionado === 'paypal'}
+                className={metodoSeleccionado === 'paypal' ? 'seleccionado' : ''}
                 onClick={() => handleSeleccionarMetodo('paypal')}
               >
                 <PaymentIcon>🅿️</PaymentIcon>
@@ -170,13 +275,23 @@ const CheckoutPage = () => {
               </PaymentMethod>
 
               <PaymentMethod 
-                $selected={metodoSeleccionado === 'efectivo'}
+                className={metodoSeleccionado === 'efectivo' ? 'seleccionado' : ''}
                 onClick={() => handleSeleccionarMetodo('efectivo')}
               >
                 <PaymentIcon>💵</PaymentIcon>
                 <PaymentText>Efectivo</PaymentText>
               </PaymentMethod>
+
+              <PaymentMethod 
+                className={metodoSeleccionado === 'tarjeta' ? 'seleccionado' : ''}
+                onClick={() => handleSeleccionarMetodo('tarjeta')}
+              >
+                <PaymentIcon>💳</PaymentIcon>
+                <PaymentText>Tarjeta</PaymentText>
+              </PaymentMethod>
             </PaymentMethods>
+            
+            {renderPaymentMethodContent()}
           </PaymentSection>
 
           {error && <ErrorMessage>{error}</ErrorMessage>}
@@ -184,7 +299,7 @@ const CheckoutPage = () => {
           <ButtonGroup>
             <ConfirmButton 
               onClick={handleConfirmPurchase}
-              disabled={loading}
+              disabled={loading || (metodoSeleccionado === 'mercadopago' || metodoSeleccionado === 'paypal')}
             >
               {loading ? 'Procesando...' : 'Confirmar Compra'}
             </ConfirmButton>
@@ -244,51 +359,51 @@ const CheckoutPage = () => {
   );
 };
 
+// Styled Components
 const Container = styled.div`
-  min-height: 100vh;
   padding: 2rem;
-  background-color: #1a1a1a;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 7rem;
+  background-color: #121212;
+  color: white;
+  min-height: 100vh;
 `;
 
 const CheckoutCard = styled.div`
-  background: #242424;
+  background: #1e1e1e;
   border-radius: 12px;
   padding: 2rem;
-  width: 100%;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.4);
+  border: 1px solid #333;
   max-width: 800px;
-  box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+  margin: 0 auto;
 `;
 
-const Title = styled.h1`
-  color: #ffffff;
-  margin-bottom: 2rem;
-  text-align: center;
-  font-size: 2rem;
+const Title = styled.h2`
+  margin: 0 0 1rem 0;
+  font-size: 1.8rem;
+  color: #00ff00;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
 `;
 
 const UserInfo = styled.div`
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   padding: 1rem;
-  background: #2a2a2a;
-  border-radius: 8px;
+  background: #252525;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   
   h3 {
     color: #00ff00;
-    margin-bottom: 1rem;
+    margin-bottom: 0.8rem;
   }
   
   p {
-    color: #ffffff;
     margin: 0.5rem 0;
+    color: #ccc;
   }
 `;
 
 const OrderSummary = styled.div`
-  margin-bottom: 2rem;
+  margin-bottom: 1.5rem;
   
   h3 {
     color: #00ff00;
@@ -298,163 +413,359 @@ const OrderSummary = styled.div`
 
 const ItemRow = styled.div`
   display: flex;
-  gap: 1rem;
-  padding: 1rem;
-  border-bottom: 1px solid #333;
+  align-items: center;
+  margin: 0.8rem 0;
+  padding: 0.8rem;
+  background: #252525;
+  border-radius: 8px;
+  transition: transform 0.2s, box-shadow 0.2s;
   
-  &:last-child {
-    border-bottom: none;
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 255, 0, 0.1);
   }
 `;
 
 const ItemImage = styled.img`
-  width: 80px;
-  height: 120px;
+  width: 60px;
+  height: 60px;
+  border-radius: 8px;
+  margin-right: 1rem;
   object-fit: cover;
-  border-radius: 4px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
 `;
 
 const ItemInfo = styled.div`
   flex: 1;
 `;
 
-const ItemTitle = styled.h4`
+const ItemTitle = styled.div`
+  font-weight: bold;
   color: #ffffff;
-  margin: 0 0 0.5rem 0;
+  margin-bottom: 0.5rem;
 `;
 
 const ItemDetails = styled.div`
-  display: flex;
-  flex-direction: column;
-  gap: 0.25rem;
-  color: #a8a8a8;
+  font-size: 0.9rem;
+  color: #aaa;
+  
+  span {
+    display: block;
+    margin: 0.2rem 0;
+  }
 `;
 
 const TotalSection = styled.div`
+  margin: 1.5rem 0;
+  padding: 1.2rem;
+  background: #252525;
+  border-radius: 10px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 1rem;
-  background: #2a2a2a;
-  border-radius: 8px;
-  margin: 2rem 0;
 `;
 
-const TotalLabel = styled.span`
-  color: #ffffff;
-  font-size: 1.2rem;
+const TotalLabel = styled.div`
+  font-weight: bold;
+  font-size: 1.1rem;
+  color: #fff;
 `;
 
-const TotalAmount = styled.span`
+const TotalAmount = styled.div`
+  font-size: 1.6rem;
   color: #00ff00;
-  font-size: 1.5rem;
   font-weight: bold;
 `;
 
-const ButtonGroup = styled.div`
-  display: flex;
-  gap: 1rem;
-  margin-top: 2rem;
+const PaymentSection = styled.div`
+  margin: 2rem 0;
+  
+  h3 {
+    color: #00ff00;
+    margin-bottom: 1rem;
+    font-size: 1.3rem;
+  }
 `;
 
-const Button = styled.button`
-  padding: 1rem 2rem;
+const PaymentMethods = styled.div`
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+`;
+
+const PaymentMethod = styled.div`
+  padding: 1.2rem 1rem;
+  background: #252525;
+  border-radius: 10px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  border: 2px solid transparent;
+
+  &:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+    background: #303030;
+  }
+
+  &.seleccionado {
+    background: #252525;
+    color: #00ff00;
+    border-color: #00ff00;
+    box-shadow: 0 0 15px rgba(0, 255, 0, 0.3);
+  }
+`;
+
+const PaymentIcon = styled.div`
+  font-size: 1.8rem;
+  margin-bottom: 0.5rem;
+`;
+
+const PaymentText = styled.div`
+  font-weight: bold;
+  font-size: 1rem;
+  text-align: center;
+  color: #fff;
+`;
+
+const PaymentMethodMessage = styled.div`
+  margin-top: 1rem;
+  padding: 1.2rem;
+  background: #252525;
   border-radius: 8px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+  color: #fcd53f;
+  font-weight: 500;
+  text-align: center;
+`;
+
+const CardForm = styled.form`
+  background: #252525;
+  padding: 1.5rem;
+  border-radius: 10px;
+  margin-top: 1.5rem;
+  box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+`;
+
+const CardFormGroup = styled.div`
+  margin-bottom: 1.2rem;
+`;
+
+const CardLabel = styled.label`
+  display: block;
+  margin-bottom: 0.6rem;
+  font-weight: bold;
+  color: #eee;
+`;
+
+const CardInput = styled.input`
+  width: 100%;
+  padding: 1rem;
+  border: 1px solid #444;
+  border-radius: 8px;
+  background: #1a1a1a;
+  color: white;
+  font-size: 1rem;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
+
+  &:focus {
+    border-color: #00ff00;
+    box-shadow: 0 0 0 2px rgba(0, 255, 0, 0.2);
+    outline: none;
+  }
+`;
+
+const CardFormRow = styled.div`
+  display: flex;
+  gap: 1.2rem;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+    gap: 0;
+  }
+`;
+
+const CardButton = styled.button`
+  width: 100%;
+  padding: 1rem;
+  background: #fcd53f;
+  border: none;
+  border-radius: 8px;
+  color: #000000;
+  font-weight: bold;
   font-size: 1.1rem;
-  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+
+  &:hover:not(:disabled) {
+    background: #ffcc00;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
   
   &:disabled {
-    opacity: 0.7;
+    background: #555;
+    color: #aaa;
     cursor: not-allowed;
   }
 `;
 
-const ConfirmButton = styled(Button)`
-  flex: 2;
-  background: #00ff00;
-  color: #000000;
-  border: none;
+const ButtonGroup = styled.div`
+  display: flex;
+  gap: 1.2rem;
+  margin-top: 1.5rem;
   
-  &:hover:not(:disabled) {
-    background: #00cc00;
-    transform: translateY(-2px);
+  @media (max-width: 768px) {
+    flex-direction: column;
   }
 `;
 
-const CancelButton = styled(Button)`
+const ConfirmButton = styled.button`
   flex: 1;
-  background: #333;
-  color: #ffffff;
-  border: 1px solid #404040;
-  
+  padding: 1.2rem;
+  background: #fcd53f;
+  border: none;
+  border-radius: 8px;
+  color: #000000;
+  font-weight: bold;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+
   &:hover:not(:disabled) {
-    background: #404040;
+    background: #ffcc00;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  
+  &:disabled {
+    background: #555;
+    color: #aaa;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+  }
+`;
+
+const CancelButton = styled.button`
+  flex: 1;
+  padding: 1.2rem;
+  background: #333;
+  border: 1px solid #444;
+  border-radius: 8px;
+  color: white;
+  font-weight: bold;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+
+  &:hover:not(:disabled) {
+    background: #444;
+    transform: translateY(-2px);
+  }
+  
+  &:active:not(:disabled) {
+    transform: translateY(1px);
+  }
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 `;
 
 const ErrorMessage = styled.div`
-  background-color: #ff4444;
-  color: white;
-  padding: 1rem;
-  border-radius: 8px;
-  text-align: center;
-  margin: 1rem 0;
+  color: #ff6b6b;
+  margin-top: 1rem;
+  padding: 0.8rem;
+  background: rgba(255, 0, 0, 0.1);
+  border-radius: 6px;
+  border-left: 4px solid #ff6b6b;
 `;
 
 const SuccessModal = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
-  justify-content: center;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.5);
+  justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(5px);
 `;
 
 const SuccessContent = styled.div`
-  background-color: #242424;
-  padding: 2rem;
+  background: #1e1e1e;
+  padding: 2.5rem;
   border-radius: 12px;
-  width: 100%;
-  max-width: 400px;
   text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  max-width: 500px;
+  width: 90%;
+  border: 1px solid #333;
 `;
 
-const SuccessIcon = styled.span`
-  font-size: 4rem;
+const SuccessIcon = styled.div`
+  font-size: 3.5rem;
   color: #00ff00;
-  margin-bottom: 1rem;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
 `;
 
-const SuccessTitle = styled.h2`
-  color: #ffffff;
-  margin-bottom: 1rem;
+const SuccessTitle = styled.h3`
+  margin: 0 0 1.2rem 0;
+  color: #00ff00;
+  font-size: 1.8rem;
+  text-shadow: 0 0 10px rgba(0, 255, 0, 0.3);
 `;
 
 const SuccessMessage = styled.p`
-  color: #ffffff;
-  margin-bottom: 2rem;
+  margin: 0 0 2rem 0;
+  color: white;
+  font-size: 1.1rem;
+  line-height: 1.6;
 `;
 
 const HomeButton = styled.button`
   padding: 1rem 2rem;
+  background: #00ff00;
+  border: none;
   border-radius: 8px;
+  color: #000000;
+  font-weight: bold;
   font-size: 1.1rem;
-  font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;
-  background-color: #00ff00;
-  color: #000000;
-  border: none;
+  box-shadow: 0 4px 12px rgba(0, 255, 0, 0.3);
+
+  &:hover {
+    background: #00cc00;
+    transform: translateY(-3px);
+    box-shadow: 0 8px 16px rgba(0, 255, 0, 0.4);
+  }
   
-  &:hover:not(:disabled) {
-    background-color: #00cc00;
-    transform: translateY(-2px);
+  &:active {
+    transform: translateY(1px);
   }
 `;
 
@@ -462,128 +773,77 @@ const ModalOverlay = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
-  background-color: rgba(0, 0, 0, 0.5);
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.7);
   z-index: 999;
+  backdrop-filter: blur(3px);
 `;
 
 const CancelModal = styled.div`
   position: fixed;
   top: 0;
   left: 0;
-  width: 100%;
-  height: 100%;
+  right: 0;
+  bottom: 0;
+  background: rgba(0, 0, 0, 0.85);
   display: flex;
-  justify-content: center;
   align-items: center;
-  background-color: rgba(0, 0, 0, 0.5);
+  justify-content: center;
   z-index: 1000;
+  backdrop-filter: blur(5px);
 `;
 
 const CancelContent = styled.div`
-  background-color: #242424;
+  background: #1e1e1e;
   padding: 2rem;
   border-radius: 12px;
-  width: 100%;
-  max-width: 400px;
   text-align: center;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  max-width: 450px;
+  width: 90%;
+  border: 1px solid #333;
 `;
 
-const CancelTitle = styled.h2`
-  color: #ffffff;
-  margin-bottom: 1rem;
+const CancelTitle = styled.h3`
+  margin: 0 0 1.5rem 0;
+  color: #fcd53f;
+  font-size: 1.5rem;
 `;
 
 const CancelButtons = styled.div`
   display: flex;
   gap: 1rem;
   justify-content: center;
-`;
-
-const CancelModalButton = styled.button`
-  padding: 0.75rem 1.5rem;
-  border-radius: 8px;
-  font-size: 1rem;
-  font-weight: 600;
-  cursor: pointer;
-  transition: all 0.3s ease;
-  border: none;
   
-  &:disabled {
-    opacity: 0.7;
-    cursor: not-allowed;
-  }
-  
-  &:first-child {
-    background: #ff4444;
-    color: #ffffff;
-    
-    &:hover:not(:disabled) {
-      background: #cc3333;
-      transform: translateY(-2px);
-    }
-  }
-  
-  &:last-child {
-    background: #333;
-    color: #ffffff;
-    border: 1px solid #404040;
-    
-    &:hover:not(:disabled) {
-      background: #404040;
-    }
-  }
-`;
-
-// NUEVOS STYLED COMPONENTS para métodos de pago
-const PaymentSection = styled.div`
-  margin: 2rem 0;
-  padding: 1rem;
-  background: #2a2a2a;
-  border-radius: 8px;
-  
-  h3 {
-    color: #00ff00;
-    margin-bottom: 1rem;
-  }
-`;
-
-const PaymentMethods = styled.div`
-  display: flex;
-  gap: 1rem;
-  
-  @media (max-width: 768px) {
+  @media (max-width: 480px) {
     flex-direction: column;
   }
 `;
 
-const PaymentMethod = styled.div`
+const CancelModalButton = styled.button`
   flex: 1;
   padding: 1rem;
-  border: 2px solid ${props => props.$selected ? '#00ff00' : '#404040'};
-  background: ${props => props.$selected ? '#333' : '#242424'};
+  background: #fcd53f;
+  border: none;
   border-radius: 8px;
+  color: #000000;
+  font-weight: bold;
+  font-size: 1.1rem;
   cursor: pointer;
   transition: all 0.3s ease;
-  display: flex;
-  align-items: center;
-  gap: 0.5rem;
-  
-  &:hover {
-    border-color: #00ff00;
-    background: #333;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+
+  &:hover:not(:disabled) {
+    background: #ffcc00;
+    transform: translateY(-2px);
+    box-shadow: 0 6px 12px rgba(0, 0, 0, 0.3);
   }
-`;
-
-const PaymentIcon = styled.span`
-  font-size: 1.5rem;
-`;
-
-const PaymentText = styled.span`
-  color: #ffffff;
-  font-size: 1rem;
-  font-weight: 500;
+  
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 `;
 
 export default CheckoutPage;

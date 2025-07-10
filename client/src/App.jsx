@@ -9,7 +9,7 @@ import ProfilePage from './pages/ProfilePage'
 import Header from './components/Header/Header'
 import Footer from './components/Footer/Footer'
 import Cart from './components/Cart/Cart'
-import { CartProvider } from './context/CartContext'
+import { useCart } from './hooks/useCart'
 import BooksPage from './pages/BooksPage'
 import AlbumsPage from './pages/AlbumsPage'
 import AlbumForm from './pages/album-form';
@@ -19,7 +19,8 @@ import EditAlbumForm from './pages/EditAlbumForm';
 import CheckoutPage from './pages/CheckoutPage';
 import Contact from './pages/Contact';
 import { Provider } from 'react-redux';
-import store from './store/store';
+import { PersistGate } from 'redux-persist/integration/react';
+import store, { persistor } from './store/store';
 import { ToastContainer } from 'react-toastify';
 import { configureTokenGetter } from './utils/apiUtils';
 import 'react-toastify/dist/ReactToastify.css';
@@ -38,8 +39,8 @@ const TokenConfigurator = () => {
 const App = () => {
   return (
     <Provider store={store}>
+      <PersistGate loading={null} persistor={persistor}>
       <TokenConfigurator />
-      <CartProvider>
         <Header />
         <Cart />
         <Routes>
@@ -74,7 +75,7 @@ const App = () => {
             fontSize: '14px'
           }}
         />
-      </CartProvider>
+      </PersistGate>
     </Provider>
   )
 }

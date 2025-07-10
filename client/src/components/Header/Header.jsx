@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Cart from '../Cart/Cart';
-import { useCart } from '../../context/CartContext';
+import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import ShoppCartIcon from '../../assets/ShoppCartIcon';
 import { FaUser, FaChevronDown, FaBars, FaTimes } from 'react-icons/fa';

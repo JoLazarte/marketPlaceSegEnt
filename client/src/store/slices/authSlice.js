@@ -149,9 +149,10 @@ const authSlice = createSlice({
       })
       .addCase(registerUser.fulfilled, (state, action) => {
         state.isLoading = false;
-        state.user = action.payload.user || action.payload;
-        state.isAuthenticated = true;
-        state.message = { type: 'success', text: '¡Registro exitoso! Redirigiendo al inicio de sesión...' };
+        state.user = null;
+        state.token = null;
+        state.isAuthenticated = false;
+        state.message = { type: 'success', text: '¡Registro exitoso! Serás redirigido a la página de inicio de sesión.' };
         state.error = null;
       })
       .addCase(registerUser.rejected, (state, action) => {

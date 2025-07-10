@@ -1,9 +1,11 @@
 import React, { useState } from 'react';
 import styled from 'styled-components';
-import { useCart } from '../../context/CartContext';
+import { useCart } from '../../hooks/useCart';
 import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 import { useBuys } from '../../hooks/useBuys';
+import { useDispatch } from 'react-redux';
+import { setBuyId } from '../../store/slices/buySlice';
 
 const Cart = ({ isOpen, onClose }) => {
   const { canViewCart, role, token } = useAuth();
@@ -17,6 +19,7 @@ const Cart = ({ isOpen, onClose }) => {
     clearCart 
   } = useCart();
   const { createBuy, loading: buyLoading, error: buyError } = useBuys();
+  const dispatch = useDispatch();
 
   const [showLoginModal, setShowLoginModal] = useState(false);
   const [stockMessage, setStockMessage] = useState('');
@@ -54,10 +57,10 @@ const Cart = ({ isOpen, onClose }) => {
       // Crear la compra directamente
       const buyData = await createBuy(cartItems, token);
       console.log('Compra creada:', buyData);
-      
-      // Guardamos el ID de la compra en localStorage para usarlo en checkout
-      localStorage.setItem('currentBuyId', buyData.id);
-      
+
+      // Guardamos el ID de la compra en Redux (persistido)
+      dispatch(setBuyId(buyData.id));
+
       onClose(); 
       navigate('/checkout'); 
     } catch (err) {

@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import styled from 'styled-components'
-import { useCart } from '../context/CartContext'
+import { useCart } from '../hooks/useCart'
 
 const API_URL_BOOKS = 'http://localhost:8080/books';
 const API_URL_DISCS = 'http://localhost:8080/musicAlbums';
