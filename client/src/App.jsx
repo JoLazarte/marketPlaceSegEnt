@@ -1,4 +1,6 @@
 import { Routes, Route } from 'react-router-dom'
+import { useEffect } from 'react'
+import { useSelector } from 'react-redux'
 import Layout from './components/Layout/Layout'
 import DetailPage from './pages/DetailPage'
 import RegisterPage from './pages/RegisterPage'
@@ -8,7 +10,6 @@ import Header from './components/Header/Header'
 import Footer from './components/Footer/Footer'
 import Cart from './components/Cart/Cart'
 import { CartProvider } from './context/CartContext'
-import { AuthProvider } from './context/AuthContext'
 import BooksPage from './pages/BooksPage'
 import AlbumsPage from './pages/AlbumsPage'
 import AlbumForm from './pages/album-form';
@@ -20,13 +21,25 @@ import Contact from './pages/Contact';
 import { Provider } from 'react-redux';
 import store from './store/store';
 import { ToastContainer } from 'react-toastify';
+import { configureTokenGetter } from './utils/apiUtils';
 import 'react-toastify/dist/ReactToastify.css';
+
+// Componente para configurar el token getter
+const TokenConfigurator = () => {
+  const token = useSelector(state => state.auth.token);
+  
+  useEffect(() => {
+    configureTokenGetter(() => token);
+  }, [token]);
+  
+  return null;
+};
 
 const App = () => {
   return (
     <Provider store={store}>
-      <AuthProvider>
-        <CartProvider>
+      <TokenConfigurator />
+      <CartProvider>
         <Header />
         <Cart />
         <Routes>
@@ -43,7 +56,7 @@ const App = () => {
           <Route path="/edit/book/:id" element={<EditBookForm />} />
           <Route path="/edit/album/:id" element={<EditAlbumForm />} />
           <Route path="/checkout" element={<CheckoutPage />} />
-        <Route path="/contact" element={<Contact />} />
+          <Route path="/contact" element={<Contact />} />
         </Routes>
         <Footer />
         <ToastContainer
@@ -62,7 +75,6 @@ const App = () => {
           }}
         />
       </CartProvider>
-    </AuthProvider>
     </Provider>
   )
 }

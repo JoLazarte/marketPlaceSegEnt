@@ -1,22 +1,14 @@
 import React, { useState } from 'react'
 import { BsArrowLeftCircleFill, BsArrowRightCircleFill } from "react-icons/bs";
 import { useNavigate } from 'react-router-dom';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import './Carrusel.css';
 
 const Carrusel = ({data}) =>{
   const [slide, setSlide] = useState(0);
   const navigate = useNavigate();
   
-  // Temporalmente sin autenticación para debug
-  let user = null;
-  try {
-    const auth = useAuth();
-    user = auth?.user;
-  } catch (error) {
-    console.warn('AuthContext not available, using fallback');
-    user = null;
-  }
+  const { user } = useAuth();
 
   // Filtrar slides basado en el estado de autenticación
   const filteredData = user ? data.filter(item => item.id !== 3) : data;

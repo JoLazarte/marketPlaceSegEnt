@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import styled from 'styled-components';
 import Cart from '../Cart/Cart';
 import { useCart } from '../../context/CartContext';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import ShoppCartIcon from '../../assets/ShoppCartIcon';
 import { FaUser, FaChevronDown, FaBars, FaTimes } from 'react-icons/fa';
 import './Header.css';
@@ -14,15 +14,15 @@ const Header = () => {
   const [showProductsMenu, setShowProductsMenu] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const { getItemCount } = useCart();
-  const { isAuthenticated, logout, user, isAdmin } = useAuth();
+  const { isAuthenticated, user, handleLogout } = useAuth();
   const navigate = useNavigate();
 
   const toggleCart = () => {
     setIsCartOpen(!isCartOpen);
   };
 
-  const handleLogout = () => {
-    logout();
+  const handleLogoutClick = () => {
+    handleLogout();
     setShowUserMenu(false);
   };
 
@@ -94,24 +94,24 @@ const Header = () => {
           <Link to="/contact" onClick={handleMobileMenuClose}>Contacto</Link>
         </NavItem>
         
-        {isAuthenticated() ? (
+        {isAuthenticated ? (
           <UserSection>
             <UserButton onClick={toggleUserMenu}>
               <FaUser />
-              <span>{user.firstName}</span>
+              <span>{user?.firstName}</span>
             </UserButton>
             {showUserMenu && (
               <UserMenu>
                 <UserInfo>
-                  <strong>{user.firstName} {user.lastName}</strong>
-                  <small>{user.email}</small>
+                  <strong>{user?.firstName} {user?.lastName}</strong>
+                  <small>{user?.email}</small>
                 </UserInfo>
                 <MenuDivider />
                 <MenuItem onClick={handleProfileClick}>
                   Mi Perfil
                 </MenuItem>
                 <MenuDivider />
-                <MenuItem as="button" onClick={handleLogout}>
+                <MenuItem as="button" onClick={handleLogoutClick}>
                   Cerrar Sesión
                 </MenuItem>
               </UserMenu>
@@ -129,7 +129,7 @@ const Header = () => {
         )}
         
         {/* El carrito solo lo ven los que NO son admin */}
-        {!isAdmin() && (
+        {user?.role !== 'ADMIN' && (
           <CartContainer onClick={toggleCart}>
             <ShoppCartIcon />
             <CartCount>({getItemCount()})</CartCount>

@@ -1,17 +1,28 @@
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux'; // NUEVO
 import styled from 'styled-components';
 import { useCart } from '../context/CartContext';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { useBuys } from '../hooks/useBuys';
+import { seleccionarMetodoDePago, limpiarMetodoDePago } from '../store/slices/pagoSlice'; // NUEVO
 
 const CheckoutPage = () => {
   const navigate = useNavigate();
+  const dispatch = useDispatch(); // NUEVO
   const { cartItems, getCartTotal, clearCart } = useCart();
   const { user, token } = useAuth();
   const { confirmBuy, emptyBuy, loading, error } = useBuys();
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [showCancelModal, setShowCancelModal] = useState(false);
+
+  // NUEVO: Obtener método de pago seleccionado desde Redux
+  const metodoSeleccionado = useSelector((state) => state.pago.metodoSeleccionado);
+
+  // NUEVO: Función para manejar selección de método de pago
+  const handleSeleccionarMetodo = (metodo) => {
+    dispatch(seleccionarMetodoDePago(metodo));
+  };
 
   const handleCancel = async () => {
     // Obtener el ID de la compra
@@ -38,6 +49,9 @@ const CheckoutPage = () => {
       localStorage.removeItem('currentBuyId');
       clearCart();
       
+      // NUEVO: Limpiar método de pago seleccionado
+      dispatch(limpiarMetodoDePago());
+      
       // Cerrar modal y volver al home
       setShowCancelModal(false);
       navigate('/');
@@ -52,6 +66,12 @@ const CheckoutPage = () => {
   };
 
   const handleConfirmPurchase = async () => {
+    // NUEVO: Validar que se haya seleccionado un método de pago
+    if (!metodoSeleccionado) {
+      alert('Por favor, selecciona un método de pago antes de confirmar la compra.');
+      return;
+    }
+
     try {
       // Obtener el ID de la compra que se guardó en localStorage
       const buyId = localStorage.getItem('currentBuyId');
@@ -60,19 +80,33 @@ const CheckoutPage = () => {
         throw new Error('No se encontró el ID de la compra. Por favor, vuelve al carrito e intenta nuevamente.');
       }
 
+      // FUTURA INTEGRACIÓN: Aquí se procesará según el método de pago seleccionado
+      if (metodoSeleccionado === 'mercadopago') {
+        // FUTURA INTEGRACIÓN: Integrar API de Mercado Pago
+        console.log('Procesando pago con Mercado Pago...');
+        // await procesarPagoMercadoPago(buyId, getCartTotal());
+      } else if (metodoSeleccionado === 'paypal') {
+        // FUTURA INTEGRACIÓN: Integrar API de PayPal
+        console.log('Procesando pago con PayPal...');
+        // await procesarPagoPayPal(buyId, getCartTotal());
+      } else if (metodoSeleccionado === 'efectivo') {
+        // Para efectivo, continuar con la confirmación normal
+        console.log('Pago en efectivo confirmado');
+      }
+
       const confirmedBuy = await confirmBuy(buyId, token);
       console.log('Compra confirmada:', confirmedBuy);
 
       clearCart();
-      
       localStorage.removeItem('currentBuyId');
       
-     
+      // NUEVO: Limpiar método de pago después de confirmar
+      dispatch(limpiarMetodoDePago());
+      
       setShowSuccessModal(true);
       
     } catch (err) {
       console.error('Error en la compra:', err);
-
     }
   };
 
@@ -114,6 +148,36 @@ const CheckoutPage = () => {
             <TotalLabel>Total a Pagar:</TotalLabel>
             <TotalAmount>${getCartTotal().toFixed(2)}</TotalAmount>
           </TotalSection>
+
+          {/* NUEVA SECCIÓN: Métodos de Pago */}
+          <PaymentSection>
+            <h3>Método de Pago</h3>
+            <PaymentMethods>
+              <PaymentMethod 
+                $selected={metodoSeleccionado === 'mercadopago'}
+                onClick={() => handleSeleccionarMetodo('mercadopago')}
+              >
+                <PaymentIcon>💳</PaymentIcon>
+                <PaymentText>Mercado Pago</PaymentText>
+              </PaymentMethod>
+
+              <PaymentMethod 
+                $selected={metodoSeleccionado === 'paypal'}
+                onClick={() => handleSeleccionarMetodo('paypal')}
+              >
+                <PaymentIcon>🅿️</PaymentIcon>
+                <PaymentText>PayPal</PaymentText>
+              </PaymentMethod>
+
+              <PaymentMethod 
+                $selected={metodoSeleccionado === 'efectivo'}
+                onClick={() => handleSeleccionarMetodo('efectivo')}
+              >
+                <PaymentIcon>💵</PaymentIcon>
+                <PaymentText>Efectivo</PaymentText>
+              </PaymentMethod>
+            </PaymentMethods>
+          </PaymentSection>
 
           {error && <ErrorMessage>{error}</ErrorMessage>}
 
@@ -472,4 +536,54 @@ const CancelModalButton = styled.button`
   }
 `;
 
-export default CheckoutPage; 
+// NUEVOS STYLED COMPONENTS para métodos de pago
+const PaymentSection = styled.div`
+  margin: 2rem 0;
+  padding: 1rem;
+  background: #2a2a2a;
+  border-radius: 8px;
+  
+  h3 {
+    color: #00ff00;
+    margin-bottom: 1rem;
+  }
+`;
+
+const PaymentMethods = styled.div`
+  display: flex;
+  gap: 1rem;
+  
+  @media (max-width: 768px) {
+    flex-direction: column;
+  }
+`;
+
+const PaymentMethod = styled.div`
+  flex: 1;
+  padding: 1rem;
+  border: 2px solid ${props => props.$selected ? '#00ff00' : '#404040'};
+  background: ${props => props.$selected ? '#333' : '#242424'};
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  
+  &:hover {
+    border-color: #00ff00;
+    background: #333;
+  }
+`;
+
+const PaymentIcon = styled.span`
+  font-size: 1.5rem;
+`;
+
+const PaymentText = styled.span`
+  color: #ffffff;
+  font-size: 1rem;
+  font-weight: 500;
+`;
+
+export default CheckoutPage;

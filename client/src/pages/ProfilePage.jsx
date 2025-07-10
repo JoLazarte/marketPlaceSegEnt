@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import { Navigate } from 'react-router-dom';
 
 const ProfilePage = () => {
-  const { isAuthenticated, user, updateUserProfile } = useAuth();
+  const { isAuthenticated, user, token } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [formData, setFormData] = useState({
     username: '',
@@ -57,17 +57,30 @@ const ProfilePage = () => {
     // Excluimos el username de los datos a actualizar
     const { username, ...dataToUpdate } = formData;
 
-    const result = await updateUserProfile({
-      ...dataToUpdate,
-      password: "null"
-    });
-    
-    if (result.success) {
-      setSuccess('¡Perfil actualizado correctamente!');
-      setIsEditing(false);
-      setChangedFields([]);
-    } else {
-      setError(result.error);
+    try {
+      const response = await fetch('http://localhost:8080/users/update', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          ...dataToUpdate,
+          password: "null"
+        })
+      });
+
+      const data = await response.json();
+      
+      if (data.ok) {
+        setSuccess('¡Perfil actualizado correctamente!');
+        setIsEditing(false);
+        setChangedFields([]);
+      } else {
+        setError(data.error || 'Error al actualizar el perfil');
+      }
+    } catch (error) {
+      setError('Error de conexión. Por favor, intenta más tarde.');
     }
   };
 

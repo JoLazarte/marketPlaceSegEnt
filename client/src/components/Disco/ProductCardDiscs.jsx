@@ -2,7 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import './ProductCardDiscs.css';
 import { FaRegEdit, FaEye, FaEyeSlash } from 'react-icons/fa';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { toggleAlbumStatus } from '../../utils/apiUtils';
 import { toast } from 'react-toastify';
 

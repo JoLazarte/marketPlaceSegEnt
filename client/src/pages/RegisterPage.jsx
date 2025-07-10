@@ -2,154 +2,48 @@ import React, { useState } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { useAuth } from '../hooks/useAuth';
+import { useRegisterForm } from '../hooks/useRegisterForm';
 
 const RegisterPage = () => {
   const navigate = useNavigate();
-  const [formData, setFormData] = useState({
-    username: '',
-    password: '',
-    firstName: '',
-    lastName: '',
-    email: ''
-  });
-
   const [showPassword, setShowPassword] = useState(false);
-
-  const [errors, setErrors] = useState({
-    email: '',
-    password: ''
-  });
-
-  const [touched, setTouched] = useState({
-    email: false,
-    password: false
-  });
-
-  const [message, setMessage] = useState({ type: '', text: '' });
-
-  const URL = 'http://localhost:8080/auth/register';
-
-  const validateEmail = (email) => {
-    const regex = /^[a-zA-Z0-9._-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,6}$/;
-    return regex.test(email);
-  };
-
-  const validatePassword = (password) => {
-    const minLength = password.length >= 6;
-    const hasUpperCase = /[A-Z]/.test(password);
-    const hasNumber = /[0-9]/.test(password);
-
-    if (!minLength) {
-      return 'La contraseña debe tener al menos 6 caracteres';
-    }
-    if (!hasUpperCase) {
-      return 'La contraseña debe tener al menos una mayúscula';
-    }
-    if (!hasNumber) {
-      return 'La contraseña debe tener al menos un número';
-    }
-    return '';
-  };
+  const { handleRegister, isLoading } = useAuth();
+  const {
+    formData,
+    errors,
+    touched,
+    message,
+    handleFormChange,
+    handleFieldBlur,
+    clearFormData,
+    validateForm
+  } = useRegisterForm();
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prevState => ({
-      ...prevState,
-      [name]: value
-    }));
+    handleFormChange(name, value);
   };
 
   const handleBlur = (e) => {
     const { name, value } = e.target;
-    setTouched(prev => ({
-      ...prev,
-      [name]: true
-    }));
-
-    if (name === 'email' && touched.email) {
-      if (!value) {
-        setErrors(prev => ({ ...prev, email: 'El email es requerido' }));
-      } else if (!validateEmail(value)) {
-        setErrors(prev => ({ ...prev, email: 'Por favor, ingresa un email válido' }));
-      } else {
-        setErrors(prev => ({ ...prev, email: '' }));
-      }
-    }
-
-    if (name === 'password') {
-      const passwordError = validatePassword(value);
-      setErrors(prev => ({ ...prev, password: passwordError }));
-    }
+    handleFieldBlur(name, value);
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     
-    const emailError = !validateEmail(formData.email) ? 'Por favor, ingresa un email válido' : '';
-    const passwordError = validatePassword(formData.password);
-
-    setErrors({
-      email: emailError,
-      password: passwordError
-    });
-    
-    setTouched({
-      email: true,
-      password: true
-    });
-
-    if (emailError || passwordError) {
+    if (!validateForm()) {
       return;
     }
 
-    fetch(URL, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        ...formData,
-        role: 'BUYER'
-      })
-    })
-      .then(async response => {
-        const responseText = await response.text();
-        
-        try {
-          const data = JSON.parse(responseText);
-          if (data.ok) {
-            setMessage({ 
-              type: 'success', 
-              text: '¡Registro exitoso! Redirigiendo al inicio de sesión...' 
-            });
-            setTimeout(() => {
-              navigate('/login');
-            }, 2000);
-          } else {
-            setMessage({ 
-              type: 'error', 
-              text: data.error || 'Error al registrar usuario' 
-            });
-          }
-        } catch (error) {
-          console.error('Error al parsear la respuesta:', error);
-          setMessage({ 
-            type: 'error', 
-            text: 'Error en la respuesta del servidor' 
-          });
-        }
-      })
-      .catch(error => {
-        console.error('Error al hacer la petición:', error);
-        setMessage({ 
-          type: 'error', 
-          text: 'Error de conexión. Por favor, intenta más tarde.' 
-        });
-      });
-  };
-
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
+    const result = await handleRegister(formData);
+    if (result && result.success) {
+      setTimeout(() => {
+        navigate('/login');
+      }, 2000);
+      clearFormData();
+    }
   };
 
   return (
@@ -169,9 +63,14 @@ const RegisterPage = () => {
               name="username"
               value={formData.username}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
               placeholder="Ingresa tu nombre de usuario"
+              $hasError={touched.username && !!errors.username}
             />
+            {touched.username && errors.username && (
+              <ErrorMessage>{errors.username}</ErrorMessage>
+            )}
           </InputGroup>
 
           <InputGroup>
@@ -189,7 +88,7 @@ const RegisterPage = () => {
               />
               <TogglePasswordButton
                 type="button"
-                onClick={togglePasswordVisibility}
+                onClick={() => setShowPassword(!showPassword)}
                 title={showPassword ? "Ocultar contraseña" : "Mostrar contraseña"}
               >
                 {showPassword ? <FaEyeSlash /> : <FaEye />}
@@ -198,20 +97,6 @@ const RegisterPage = () => {
             {touched.password && errors.password && (
               <ErrorMessage>{errors.password}</ErrorMessage>
             )}
-            <PasswordRequirements>
-              La contraseña debe tener:
-              <RequirementList>
-                <Requirement $isMet={formData.password.length >= 6}>
-                  • Mínimo 6 caracteres
-                </Requirement>
-                <Requirement $isMet={/[A-Z]/.test(formData.password)}>
-                  • Al menos una mayúscula
-                </Requirement>
-                <Requirement $isMet={/[0-9]/.test(formData.password)}>
-                  • Al menos un número
-                </Requirement>
-              </RequirementList>
-            </PasswordRequirements>
           </InputGroup>
 
           <InputGroup>
@@ -221,9 +106,14 @@ const RegisterPage = () => {
               name="firstName"
               value={formData.firstName}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
               placeholder="Ingresa tu nombre"
+              $hasError={touched.firstName && !!errors.firstName}
             />
+            {touched.firstName && errors.firstName && (
+              <ErrorMessage>{errors.firstName}</ErrorMessage>
+            )}
           </InputGroup>
 
           <InputGroup>
@@ -233,9 +123,14 @@ const RegisterPage = () => {
               name="lastName"
               value={formData.lastName}
               onChange={handleChange}
+              onBlur={handleBlur}
               required
               placeholder="Ingresa tu apellido"
+              $hasError={touched.lastName && !!errors.lastName}
             />
+            {touched.lastName && errors.lastName && (
+              <ErrorMessage>{errors.lastName}</ErrorMessage>
+            )}
           </InputGroup>
 
           <InputGroup>
@@ -255,7 +150,9 @@ const RegisterPage = () => {
             )}
           </InputGroup>
 
-          <Button type="submit">Registrarse</Button>
+          <Button type="submit" disabled={isLoading}>
+            {isLoading ? 'Registrando...' : 'Registrarse'}
+          </Button>
         </Form>
         <LoginLink>
           ¿Ya tienes una cuenta? <Link to="/login">Iniciar sesión</Link>

@@ -2,7 +2,7 @@ import React, { useRef, useEffect, useState } from 'react';
 import Slider from 'react-slick';
 import styled from 'styled-components';
 import ProductCardBook from './ProductCardBook';
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'http://localhost:8080/books';

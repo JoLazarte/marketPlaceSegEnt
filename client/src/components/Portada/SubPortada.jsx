@@ -1,18 +1,10 @@
 import React from 'react'
 import './SubPortada.css'
 import { Link } from 'react-router-dom'
-import { useAuth } from '../../context/AuthContext'
+import { useAuth } from '../../hooks/useAuth'
 
 const SubPortada = () => {
-  // Temporalmente sin autenticación para debug
-  let user = null;
-  try {
-    const auth = useAuth();
-    user = auth?.user;
-  } catch (error) {
-    console.warn('AuthContext not available, using fallback');
-    user = null;
-  }
+  const { user } = useAuth();
 
   return (
     <div className="cta-glass">

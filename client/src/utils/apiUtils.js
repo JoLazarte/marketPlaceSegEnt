@@ -1,5 +1,23 @@
 // Funciones utilitarias para manejo de errores y comunicación con la API
-export const apiUtils = {
+
+// Función para obtener el token desde Redux
+let getTokenFromRedux = null;
+
+// Función para configurar el getter del token
+export const configureTokenGetter = (tokenGetter) => {
+  getTokenFromRedux = tokenGetter;
+};
+
+// Función para obtener el token (desde Redux si está disponible, sino desde localStorage como fallback)
+const getToken = () => {
+  if (getTokenFromRedux) {
+    return getTokenFromRedux();
+  }
+  // Fallback a localStorage para compatibilidad
+  return localStorage.getItem('token');
+};
+
+const apiUtils = {
   // Función fetch mejorada con manejo robusto de errores
   async fetchWithErrorHandling(url, options = {}) {
     console.log(`=== API CALL ===`);
@@ -83,7 +101,7 @@ export const apiUtils = {
       url += `&page=${page}&size=${size}`;
     }
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const result = await this.fetchWithErrorHandling(url, {
       headers: {
         'Accept': 'application/json',
@@ -118,7 +136,7 @@ export const apiUtils = {
       url += `&page=${page}&size=${size}`;
     }
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const result = await this.fetchWithErrorHandling(url, {
       headers: {
         'Accept': 'application/json',
@@ -136,7 +154,7 @@ export const apiUtils = {
 
   // Crear un nuevo libro
   async createBook(bookData) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     
     const result = await this.fetchWithErrorHandling('http://localhost:8080/books', {
       method: 'POST',
@@ -153,7 +171,7 @@ export const apiUtils = {
 
   // Actualizar un libro existente
   async updateBook(bookData) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     
     const result = await this.fetchWithErrorHandling('http://localhost:8080/books', {
       method: 'PUT',
@@ -175,7 +193,7 @@ export const apiUtils = {
 
   // Cambiar estado activo/inactivo de un libro
   async toggleBookStatus(bookId, newStatus) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     
     try {
       const result = await this.fetchWithErrorHandling(`http://localhost:8080/admin/books/${bookId}/toggle-status`, {
@@ -204,7 +222,7 @@ export const apiUtils = {
       url = `http://localhost:8080/books/${bookId}?activeOnly=true`;
     }
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const result = await this.fetchWithErrorHandling(url, {
       headers: {
         'Accept': 'application/json',
@@ -227,7 +245,7 @@ export const apiUtils = {
 
   // Crear un nuevo álbum
   async createAlbum(albumData) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     
     const result = await this.fetchWithErrorHandling('http://localhost:8080/musicAlbums', {
       method: 'POST',
@@ -244,7 +262,7 @@ export const apiUtils = {
 
   // Actualizar un álbum existente
   async updateAlbum(albumData) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     
     const result = await this.fetchWithErrorHandling('http://localhost:8080/musicAlbums', {
       method: 'PUT',
@@ -266,7 +284,7 @@ export const apiUtils = {
 
   // Cambiar estado activo/inactivo de un álbum
   async toggleAlbumStatus(albumId, newStatus) {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     
     try {
       const result = await this.fetchWithErrorHandling(`http://localhost:8080/admin/musicAlbums/${albumId}/toggle-status`, {
@@ -295,7 +313,7 @@ export const apiUtils = {
       url = `http://localhost:8080/musicAlbums/${albumId}?activeOnly=true`;
     }
     
-    const token = localStorage.getItem('token');
+    const token = getToken();
     const result = await this.fetchWithErrorHandling(url, {
       headers: {
         'Accept': 'application/json',
@@ -318,7 +336,7 @@ export const apiUtils = {
 
   // Obtener estadísticas de administrador
   async getAdminStats() {
-    const token = localStorage.getItem('token');
+    const token = getToken();
     
     const result = await this.fetchWithErrorHandling('http://localhost:8080/admin/stats', {
       headers: {

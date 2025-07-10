@@ -3,7 +3,7 @@ import Slider from 'react-slick'
 import styled from 'styled-components'
 import ProductCardDiscs from './ProductCardDiscs';
 import { SlArrowLeft, SlArrowRight } from "react-icons/sl";
-import { useAuth } from '../../context/AuthContext';
+import { useAuth } from '../../hooks/useAuth';
 import { useNavigate } from 'react-router-dom';
 
 const API_URL = 'http://localhost:8080/musicAlbums';

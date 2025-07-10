@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import styled, { keyframes, css } from 'styled-components';
 import { useNavigate, useParams } from 'react-router-dom';
 import { toast } from 'react-toastify';
-import { useAuth } from '../context/AuthContext';
+import { useAuth } from '../hooks/useAuth';
 import apiUtils from '../utils/apiUtils';
 
 // Puedes definir la URL base de tu backend aquí:

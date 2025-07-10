@@ -1,8 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import styled from 'styled-components';
 import { Link, useNavigate } from 'react-router-dom';
-import { useAuth } from '../context/AuthContext';
 import { FaEye, FaEyeSlash } from 'react-icons/fa';
+import { useAuth } from '../hooks/useAuth';
 
 const LoginPage = () => {
   const [formData, setFormData] = useState({
@@ -11,9 +11,13 @@ const LoginPage = () => {
   });
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
   const navigate = useNavigate();
-  const { login } = useAuth();
+  const { isLoading, loginError, handleLogin, clearLoginErrorData } = useAuth();
+
+  // Limpiar errores al montar el componente
+  useEffect(() => {
+    clearLoginErrorData();
+  }, [clearLoginErrorData]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -28,10 +32,9 @@ const LoginPage = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
-    setIsLoading(true);
 
     try {
-      const result = await login(formData.username, formData.password);
+      const result = await handleLogin(formData.username, formData.password);
       if (result.success) {
         navigate('/');
       } else {
@@ -39,8 +42,6 @@ const LoginPage = () => {
       }
     } catch (err) {
       setError('Error inesperado. Por favor, intenta de nuevo.');
-    } finally {
-      setIsLoading(false);
     }
   };
 
@@ -89,10 +90,10 @@ const LoginPage = () => {
             </PasswordInputContainer>
           </InputGroup>
 
-          {error && (
+          {(error || loginError) && (
             <ErrorMessage>
               <ErrorIcon>⚠️</ErrorIcon>
-              {error}
+              {error || loginError}
             </ErrorMessage>
           )}
 
@@ -271,4 +272,4 @@ const TogglePasswordButton = styled.button`
   }
 `;
 
-export default LoginPage
+export default LoginPage;
